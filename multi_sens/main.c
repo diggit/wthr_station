@@ -18,10 +18,16 @@
 #define log_failMSG() log_MSG('F')
 #define log_unkMSG() log_MSG('?')
 
+#define log_str(p) log_str_ex(p,1)
+#define log_strn(p) log_str_ex(p,0)
+
+#define log_num(p) log_num_ex(p,1)
+#define log_numn(p) log_num_ex(p,0)
+
 #define RA 0b11101111
 #define WA 0b11101110
 
-void log_str(char *text);
+void log_str_ex(char *text,char NL);
 void log_redraw();
 void delay(unsigned int num) ;
 void log_busyMSG(char text[]);
@@ -134,39 +140,44 @@ void getCV()
 	CV.md = getW(0xBE);
 }
 
-int calc_temp()
+
+
+void log_num_ex(int number,char tmp)
+{
+	char buff[]="QQQQQ";
+	itos(number,buff);
+	log_str_ex(buff,tmp);
+}
+
+long calc_temp()
 {
 	char err=0;//err test
 	long X1,X2;//buffers for translate vals into human readable
 	
 	//measure temp
-	log_busyMSG("start measuring");
+	//log_busyMSG("start measuring");
 	i2c_start(WA);
 	err+=i2c_write(0xF4);//we wanna write to control reg.
 	err+=i2c_write(0x2E);//and measure temp
-	if(err)	{log_failMSG();}
-	else	{log_okMSG();}
+	//if(err)	{log_failMSG();}
+	//else	{log_okMSG();}
 	i2c_stop();
 	
 	
 	delay(100);//wait for complete measurement
 	
 	//read raw temp value
-	int UT=getW(0xF6);
+	uint16_t UT=getW(0xF6);
 	//converting
+	
+	log_str("raw");
+	log_num(UT);
 	
 	X1=(((long)UT-(long)CV.ac6)*(long)CV.ac5)>>15;
 	X2=((long)CV.mc<<11)/(X1+(long)CV.md);
 	return((X1+X2+8)>>4);
 	
 	}
-
-void log_num(int number)
-{
-	char buff[]="QQQQQ";
-	itos(number,buff);
-	log_str(buff);
-}
 
 int main (void)
 {
@@ -181,6 +192,12 @@ int main (void)
 	log_okMSG();
 	log_str("real temp");
 	log_num(calc_temp());
+	while(1)
+	{
+		log_str("real");
+		log_num(calc_temp());
+		delay(5000);
+	}
 
 	
 		
@@ -238,12 +255,12 @@ void log_bar(short per)
 	
 }
 
-void log_str(char* text)
+void log_str_ex(char* text,char NL)
 {
 	
 	uint8_t i,j,mezery=0;
 	//shift all lines up
-	if(DSP[3][0])//roll only with full display
+	if((DSP[3][0])&& NL)//roll only with full display and iw we wanna roll..
 	{
 		for(i=1;i<4;i++)
 		for(j=0;j<24;j++)
@@ -252,7 +269,7 @@ void log_str(char* text)
 
 	
 	//fill last line
-	for(i=0;i<3  && DSP[i][0] ;i++);//find first empty line, var i stay
+	for(i=0;i<3  && DSP[i][0] ;i++);//find first empty line, var i stays
 		
 	for(j=0;j<24;j++)
 	{
