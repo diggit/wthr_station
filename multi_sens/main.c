@@ -134,53 +134,53 @@ void getCV()
 	CV.md = getW(0xBE);
 }
 
+int calc_temp()
+{
+	char err=0;//err test
+	long X1,X2;//buffers for translate vals into human readable
+	
+	//measure temp
+	log_busyMSG("start measuring");
+	i2c_start(WA);
+	err+=i2c_write(0xF4);//we wanna write to control reg.
+	err+=i2c_write(0x2E);//and measure temp
+	if(err)	{log_failMSG();}
+	else	{log_okMSG();}
+	i2c_stop();
+	
+	
+	delay(100);//wait for complete measurement
+	
+	//read raw temp value
+	int UT=getW(0xF6);
+	//converting
+	
+	X1=(((long)UT-(long)CV.ac6)*(long)CV.ac5)>>15;
+	X2=((long)CV.mc<<11)/(X1+(long)CV.md);
+	return((X1+X2+8)>>4);
+	
+	}
+
+void log_num(int number)
+{
+	char buff[]="QQQQQ";
+	itos(number,buff);
+	log_str(buff);
+}
+
 int main (void)
 {
 
 	uint8_t i;
 	lcdinit();
 	CLEAN();
-	char err=0;
-	int16_t temp=0;
-	
-	char S_buff[]="12345";
-	
-	
-
 	log_str("starting...");
 
-	
-	
-	
-	
-	i2c_start(WA);
-	err=i2c_write(0xF4);//we wanna write to control reg.
-	//i2c_rep_start(WA);
-	if(err) log_str("ERR1");
-	i2c_write(0x2E);//and measure temp
-	if(err) log_str("ERR2");
-	i2c_stop();
-	
-	log_str("measure initiated");
-	
-	delay(100);
-	
-	log_str("delay over");
-	log_str("reading");
-	
-	temp=getW(0xF6);
-
-	log_str("temp read");
-	itos(temp,S_buff);
-	log_str(S_buff);
-	
 	log_busyMSG("reading calib. vals");
 	getCV();
 	log_okMSG();
-	log_str("ac5");
-	itos(CV.ac5,S_buff);
-	log_str(S_buff);
-	
+	log_str("real temp");
+	log_num(calc_temp());
 
 	
 		
