@@ -27,17 +27,19 @@
 #define RA 0b11101111
 #define WA 0b11101110
 
-void log_str_ex(char *text,char NL);
+#define WFC(); while( !(PINB & 1) ); //Wait For Conversion
+
+void log_str_ex(char *text,uint8_t NL);
 void log_redraw();
 void delay(uint16_t num) ;
 void log_busyMSG(char text[]);
-void log_bar(short per);
+void log_bar(uint8_t per);
 int32_t calc_temp();
 void log_MSG(char status);
-void itos(unsigned long num, char *output);
-void log_num_ex(long number,char tmp);
-int getW(char reg_addr);
-char getB(char reg_addr);
+void itos(uint32_t num, char *output);
+void log_num_ex(int32_t number,uint8_t tmp);
+uint16_t getW(uint8_t reg_addr);
+uint8_t getB(uint8_t reg_addr);
 void getCV();
 long calc_pressure();
 
@@ -56,20 +58,20 @@ struct { //downloaded calibration values
 }CV;
 
 struct{//calibration values calculated
-	unsigned long b7;
-	long b6;
-	long b5;
-	unsigned long b4;
-	long b3;
+	uint32_t b7;
+	int32_t b6;
+	int32_t b5;
+	uint32_t b4;
+	int32_t b3;
 } CVC;
 
 char DSP[4][24]={{""},{""},{""},{""}};
 uint8_t busyMSG=0,bar=0;
 
-const uint8_t resolution=2; //0 fastest - worst, 3 slowest - best
+const uint8_t resolution=3; //0 fastest - worst, 3 slowest - best
 
 
-void example_run()
+void example_run() //temporary, only for testing of calculations, compare with datasheet
 {
 	CVC.b5=2399;
 	CV.ac1=408;
@@ -106,13 +108,11 @@ int main (void)
 		//log_str("temperature:");
 		//log_num(calc_temp());
 		calc_temp();
-		delay(1000);
 		//log_num(987654);
 		
 		tlak=calc_pressure();
 		log_numn(tlak);
 		delay(5000);
-		//CLEAN();
 	}	
 	
 	return 0;
@@ -133,7 +133,7 @@ void getCV()
 	CV.md = getW(0xBE);
 }
 
-char getB(char reg_addr)
+uint8_t getB(uint8_t reg_addr)
 {
 	uint8_t raw;
 	i2c_start(WA);//we wannay say what to read, that is writing... (OMG, silly mistake)
@@ -144,7 +144,7 @@ char getB(char reg_addr)
 	return raw;
 }
 
-int getW(char reg_addr)
+uint16_t getW(uint8_t reg_addr)
 {
 	uint8_t raw_L,raw_H;
 	i2c_start(WA);//we wannay say what to read, that is writing... (OMG, silly mistake)
@@ -156,7 +156,7 @@ int getW(char reg_addr)
 	return (raw_H<<8)|raw_L;
 }
 
-void log_num_ex(long number,char tmp)
+void log_num_ex(int32_t number,uint8_t tmp)
 {
 	char buff[]="QQQQQQ";
 	itos(number,buff);
@@ -164,7 +164,7 @@ void log_num_ex(long number,char tmp)
 }
 
 
-void itos(unsigned long num, char *output)
+void itos(uint32_t num, char *output)
 {
 	//char output[]="12345";
 	
@@ -219,7 +219,7 @@ void log_MSG(char status)
 
 int32_t calc_temp()
 {
-	char err=0;//err test
+	uint8_t err=0;//err test
 	int32_t X1,X2;//buffers for translate vals into human readable
 	
 	//measure temp
@@ -232,7 +232,8 @@ int32_t calc_temp()
 	i2c_stop();
 	
 	
-	delay(100);//wait for complete measurement
+	//delay(5000);//wait for conversion
+	WFC();
 	
 	//read raw temp value
 	uint16_t UT=getW(0xF6);
@@ -249,16 +250,17 @@ int32_t calc_temp()
 
 long calc_pressure()
 {
-	char err=0;
-	long X1,X2,X3,p;
-	unsigned long raw_p;
+	uint8_t err=0;
+	int32_t X1,X2,X3,p;
+	uint32_t raw_p;
 	
 	i2c_start(WA);
 	err+=i2c_write(0xF4);//we wanna write to control reg.
 	err+=i2c_write(0x34+(resolution<<6));//and measure pressure
 	i2c_stop();
 	
-	delay(1000);
+	//delay(5000);//wait for conversion....
+	WFC();
 	
 	
 	//MUST BE MOVED AWAY into func.
@@ -272,7 +274,7 @@ long calc_pressure()
 	raw_L=i2c_read(1);//read byte and will be next
 	raw_X=i2c_read(0);//read byte and no next
 	i2c_stop();//stop
-	raw_p=( ((unsigned long) raw_H << 16) | ((unsigned long) raw_L << 8) | ((unsigned long) raw_X ) )>>(8-resolution); //merge all 3 bytes
+	raw_p=( ((uint32_t) raw_H << 16) | ((uint32_t) raw_L << 8) | ((uint32_t) raw_X ) )>>(8-resolution); //merge all 3 bytes
 	
 
 	//example_run();
@@ -281,21 +283,21 @@ long calc_pressure()
 	
 	//log_num(raw_p);
 	
-	delay(1000);
+	//delay(1000);
 	
 	//main calculation
 	CVC.b6=CVC.b5-4000;
 	X1=(CV.b2 * ((CVC.b6*CVC.b6)>>12))>>16;
 	X2=(CV.ac2 * CVC.b6)>>11;
 	X3=X1 + X2;
-	CVC.b3=(((((unsigned long) CV.ac1) * 4 +X3)<<resolution) + 2)>>2;
+	CVC.b3=(((((uint32_t) CV.ac1) * 4 +X3)<<resolution) + 2)>>2;
 	
 	X1=(CV.ac3 * CVC.b6)>>13;
 	X2=(CV.b1 * ((CVC.b6*CVC.b6)>>12))>>16;
 	X3=((X1 + X2) + 2)>>2;
-	CVC.b4=(CV.ac4 * (unsigned long)(X3 + 32768))>>15;
+	CVC.b4=(CV.ac4 * (uint32_t)(X3 + 32768))>>15;
 	
-	CVC.b7=((unsigned long)(raw_p - CVC.b3) * (50000>>resolution));
+	CVC.b7=((uint32_t)(raw_p - CVC.b3) * (50000>>resolution));
 	if (CVC.b7 < 0x80000000)
 	{
 		p=(CVC.b7<<1) / CVC.b4;
@@ -314,7 +316,7 @@ long calc_pressure()
 	return p;
 }
 
-void log_bar(short per)
+void log_bar(uint8_t per)
 {
 	uint8_t i,j;
 	if(!bar)//bargraph not started, roll to new line
@@ -359,7 +361,7 @@ void log_bar(short per)
 	
 }
 
-void log_str_ex(char* text,char NL)
+void log_str_ex(char* text,uint8_t NL)
 {
 	
 	uint8_t i,j,mezery=0;
