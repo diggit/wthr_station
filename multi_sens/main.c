@@ -100,16 +100,17 @@ int main (void)
 	//log_num(calc_temp());
 	
 	uint32_t tlak;
+	log_str("pressure:");
 	while(1)
 	{
 		//log_str("temperature:");
 		//log_num(calc_temp());
 		calc_temp();
 		delay(1000);
-		log_num(987654);
-		log_str("pressure:");
+		//log_num(987654);
+		
 		tlak=calc_pressure();
-		log_num(tlak);
+		log_numn(tlak);
 		delay(5000);
 		//CLEAN();
 	}	
@@ -276,7 +277,9 @@ long calc_pressure()
 
 	//example_run();
 	//raw_p=23843;
-	log_num(raw_p);
+	
+	
+	//log_num(raw_p);
 	
 	delay(1000);
 	
@@ -305,7 +308,8 @@ long calc_pressure()
 	X1=(p>>8)*(p>>8);
 	X1=(X1 * 3038)>>16;
 	X2=(-7357 * p)>>16;
-	p+=(X1 + X2 + 3791)>>4;
+	p+=(X1 + X2 + 3791)>>4;//original
+	p+=3400;//fix :D
 
 	return p;
 }
