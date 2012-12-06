@@ -32,7 +32,13 @@ void log_redraw();
 void delay(unsigned int num) ;
 void log_busyMSG(char text[]);
 void log_bar(short per);
-//void log_MSG();
+long calc_temp();
+void log_MSG(char status);
+void itos(unsigned int num, char *output);
+void log_num_ex(int number,char tmp);
+int getW(char reg_addr);
+char getB(char reg_addr);
+void getCV();
 
 struct {
 	int16_t ac1;
@@ -55,22 +61,74 @@ char DSP[4][24]={{""},{""},{""},{""}};
 uint8_t busyMSG=0,bar=0;
 
 
-
-void log_MSG(char status)
+int main (void)
 {
+
 	uint8_t i;
-	if(busyMSG)
+	lcdinit();
+	CLEAN();
+	log_str("starting...");
+
+	log_busyMSG("reading calib. vals");
+	getCV();
+	log_okMSG();
+	log_str("real temp");
+	//log_num(calc_temp());
+	while(1)
 	{
-		for(i=3;i>0 && DSP[i][22]!='B';i--);
-		if(DSP[i][22]=='B')
-			DSP[i][22]=status;
-		else
-			busyMSG=0;
-			
-	}
-	log_redraw();
-	busyMSG=0;
+		//log_str("real");
+		log_numn(calc_temp());
+		delay(5000);
+	}	
+	
+	return 0;
 }
+
+void getCV()
+{
+	CV.ac1 = getW(0xAA);
+	CV.ac2 = getW(0xAC);
+	CV.ac3 = getW(0xAE);
+	CV.ac4 = getW(0xB0);
+	CV.ac5 = getW(0xB2);
+	CV.ac6 = getW(0xB4);
+	CV.b1 = getW(0xB6);
+	CV.b2 = getW(0xB8);
+	CV.mb = getW(0xBA);
+	CV.mc = getW(0xBC);
+	CV.md = getW(0xBE);
+}
+
+char getB(char reg_addr)
+{
+	uint8_t raw;
+	i2c_start(WA);//we wannay say what to read, that is writing... (OMG, silly mistake)
+	i2c_write(reg_addr);//read from given addr
+	i2c_rep_start(RA);//restart i2c comm.
+	raw=i2c_read(0);//read byte and no next
+	i2c_stop();//stop
+	return raw;
+}
+
+int getW(char reg_addr)
+{
+	uint8_t raw_L,raw_H;
+	i2c_start(WA);//we wannay say what to read, that is writing... (OMG, silly mistake)
+	i2c_write(reg_addr);//read from given addr
+	i2c_rep_start(RA);//restart i2c comm.
+	raw_H=i2c_read(1);//read byte and will be next
+	raw_L=i2c_read(0);//read byte and no next
+	i2c_stop();//stop
+	return (raw_H<<8)|raw_L;
+}
+
+void log_num_ex(int number,char tmp)
+{
+	char buff[]="QQQQQ";
+	itos(number,buff);
+	log_str_ex(buff,tmp);
+}
+
 
 void itos(unsigned int num, char *output)
 {
@@ -100,54 +158,25 @@ void itos(unsigned int num, char *output)
 		output[4]='0'+num%10;
 	else
 		output[4]='X';
+}
+
+
+void log_MSG(char status)
+{
+	uint8_t i;
+	if(busyMSG)
+	{
+		for(i=3;i>0 && DSP[i][22]!='B';i--);
+		if(DSP[i][22]=='B')
+			DSP[i][22]=status;
+		else
+			busyMSG=0;
+			
 	}
-
-int getW(char reg_addr)
-{
-	uint8_t raw_L,raw_H;
-	i2c_start(WA);//we wannay say what to read, that is writing... (OMG, silly mistake)
-	i2c_write(reg_addr);//read from given addr
-	i2c_rep_start(RA);//restart i2c comm.
-	raw_H=i2c_read(1);//read byte and will be next
-	raw_L=i2c_read(0);//read byte and no next
-	i2c_stop();//stop
-	return (raw_H<<8)|raw_L;
+	log_redraw();
+	busyMSG=0;
 }
 
-int getB(char reg_addr)
-{
-	uint8_t raw;
-	i2c_start(WA);//we wannay say what to read, that is writing... (OMG, silly mistake)
-	i2c_write(reg_addr);//read from given addr
-	i2c_rep_start(RA);//restart i2c comm.
-	raw=i2c_read(0);//read byte and no next
-	i2c_stop();//stop
-	return raw;
-}
-
-void getCV()
-{
-	CV.ac1 = getW(0xAA);
-	CV.ac2 = getW(0xAC);
-	CV.ac3 = getW(0xAE);
-	CV.ac4 = getW(0xB0);
-	CV.ac5 = getW(0xB2);
-	CV.ac6 = getW(0xB4);
-	CV.b1 = getW(0xB6);
-	CV.b2 = getW(0xB8);
-	CV.mb = getW(0xBA);
-	CV.mc = getW(0xBC);
-	CV.md = getW(0xBE);
-}
-
-
-
-void log_num_ex(int number,char tmp)
-{
-	char buff[]="QQQQQ";
-	itos(number,buff);
-	log_str_ex(buff,tmp);
-}
 
 long calc_temp()
 {
@@ -170,44 +199,12 @@ long calc_temp()
 	uint16_t UT=getW(0xF6);
 	//converting
 	
-	log_str("raw");
-	log_num(UT);
+	//log_str("raw");
+	//log_num(UT);
 	
 	X1=(((long)UT-(long)CV.ac6)*(long)CV.ac5)>>15;
 	X2=((long)CV.mc<<11)/(X1+(long)CV.md);
 	return((X1+X2+8)>>4);
-	
-	}
-
-int main (void)
-{
-
-	uint8_t i;
-	lcdinit();
-	CLEAN();
-	log_str("starting...");
-
-	log_busyMSG("reading calib. vals");
-	getCV();
-	log_okMSG();
-	log_str("real temp");
-	log_num(calc_temp());
-	while(1)
-	{
-		log_str("real");
-		log_num(calc_temp());
-		delay(5000);
-	}
-
-	
-		
-		/*
-		
-
-		log_str(value);*/
-		
-	
-	return 0;
 }
 
 void log_bar(short per)
