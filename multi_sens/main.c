@@ -1,47 +1,39 @@
-/*
- *
- * Author:         Lukas Otava, http://lukaso.iglu.cz
- * Description:    Library for PCF857x based LCDs
- *
- */
+/***************************************************************************
+ * Desc: Program for controller Atmega8, it will be placed near sensors,
+ * reads raw values, converts them a after request, sends them back over UART
+ * USED sensors are: temperature and pressure digital i2c sensor BMP085
+ * humidity digital sensor DHT11
+ * 
+ * Author: Patrik Bachan
+ * Contact:patrikbachan@gmail.com (email), diggit@jabbim.cz (jabber)
+ * 
+ * License: GNU GPL v3
+ ***************************************************************************/
 #include <avr/io.h>
-#include <string.h>
-#include "pcf857x.c"
+#include "display_ex.c" //functions for more elegant display output
 
+
+//basic macros for simple bit writing
 #define bit_set(p,m) ((p) |= (m))
 #define bit_clr(p,m) ((p) &= ~(m))
 
-//pokus s i2c cidlem...
+//i2c library for communication
 #include "i2cmaster.c"
 
-#define log_okMSG() log_MSG('Y')
-#define log_failMSG() log_MSG('F')
-#define log_unkMSG() log_MSG('?')
-
-#define log_str(p) log_str_ex(p,1)
-#define log_strn(p) log_str_ex(p,0)
-
-#define log_num(p) log_num_ex(p,1)
-#define log_numn(p) log_num_ex(p,0)
-
+//addresses of i2c sensor
 #define RA 0b11101111
 #define WA 0b11101110
 
+//waiting for signal that indicates End Of Conversion on pin PB0
 #define WFC(); while( !(PINB & 1) ); //Wait For Conversion
 
-void log_str_ex(char *text,uint8_t NL);
-void log_redraw();
+#define resolution 3 //0 fastest - worst, 3 slowest - best
+
 void delay(uint16_t num) ;
-void log_busyMSG(char text[]);
-void log_bar(uint8_t per);
 int32_t calc_temp();
-void log_MSG(char status);
-void itos(uint32_t num, char *output);
-void log_num_ex(int32_t number,uint8_t tmp);
-uint16_t getW(uint8_t reg_addr);
-uint8_t getB(uint8_t reg_addr);
 void getCV();
 long calc_pressure();
+uint32_t readNB(uint8_t address, uint8_t bytes);
 
 struct { //downloaded calibration values
 	int16_t ac1;
@@ -65,10 +57,6 @@ struct{//calibration values calculated
 	int32_t b3;
 } CVC;
 
-char DSP[4][24]={{""},{""},{""},{""}};
-uint8_t busyMSG=0,bar=0;
-
-const uint8_t resolution=3; //0 fastest - worst, 3 slowest - best
 
 
 void example_run() //temporary, only for testing of calculations, compare with datasheet
@@ -101,17 +89,18 @@ int main (void)
 	log_str("real temp");
 	//log_num(calc_temp());
 	
-	uint32_t tlak;
+	uint32_t tlak,temp;
 	log_str("pressure:");
 	while(1)
 	{
 		//log_str("temperature:");
 		//log_num(calc_temp());
-		calc_temp();
+		temp=calc_temp();
 		//log_num(987654);
 		
 		tlak=calc_pressure();
-		log_numn(tlak);
+		log_num(tlak);
+		log_num(temp);
 		delay(5000);
 	}	
 	
@@ -120,135 +109,79 @@ int main (void)
 
 void getCV()
 {
-	CV.ac1 = getW(0xAA);
-	CV.ac2 = getW(0xAC);
-	CV.ac3 = getW(0xAE);
-	CV.ac4 = getW(0xB0);
-	CV.ac5 = getW(0xB2);
-	CV.ac6 = getW(0xB4);
-	CV.b1 = getW(0xB6);
-	CV.b2 = getW(0xB8);
-	CV.mb = getW(0xBA);
-	CV.mc = getW(0xBC);
-	CV.md = getW(0xBE);
+	CV.ac1 = readNB(0xAA,2);
+	CV.ac2 = readNB(0xAC,2);
+	CV.ac3 = readNB(0xAE,2);
+	CV.ac4 = readNB(0xB0,2);
+	CV.ac5 = readNB(0xB2,2);
+	CV.ac6 = readNB(0xB4,2);
+	CV.b1 = readNB(0xB6,2);
+	CV.b2 = readNB(0xB8,2);
+	CV.mb = readNB(0xBA,2);
+	CV.mc = readNB(0xBC,2);
+	CV.md = readNB(0xBE,2);
 }
 
-uint8_t getB(uint8_t reg_addr)
+
+
+uint32_t readNB(uint8_t reg_addr, uint8_t bytes)
 {
-	uint8_t raw;
-	i2c_start(WA);//we wannay say what to read, that is writing... (OMG, silly mistake)
+	uint8_t raw[]={0,0,0,0};//moximal 4 bytes to read
+	uint32_t sum=0;
+	uint8_t i;//some index var.
+	if(bytes>4){bytes=4;} //higher vals. shrink to 4
+	bytes--;//now, our values are 0-3, better suits here
+	
+	i2c_start(WA);//we wannay say what to read, that is writing...
 	i2c_write(reg_addr);//read from given addr
 	i2c_rep_start(RA);//restart i2c comm.
-	raw=i2c_read(0);//read byte and no next
-	i2c_stop();//stop
-	return raw;
-}
-
-uint16_t getW(uint8_t reg_addr)
-{
-	uint8_t raw_L,raw_H;
-	i2c_start(WA);//we wannay say what to read, that is writing... (OMG, silly mistake)
-	i2c_write(reg_addr);//read from given addr
-	i2c_rep_start(RA);//restart i2c comm.
-	raw_H=i2c_read(1);//read byte and will be next
-	raw_L=i2c_read(0);//read byte and no next
-	i2c_stop();//stop
-	return (raw_H<<8)|raw_L;
-}
-
-void log_num_ex(int32_t number,uint8_t tmp)
-{
-	char buff[]="QQQQQQ";
-	itos(number,buff);
-	log_str_ex(buff,tmp);
-}
-
-
-void itos(uint32_t num, char *output)
-{
-	//char output[]="12345";
 	
-	if (num>=100000)
-		output[0]='0'+num/100000;
-	else
-		output[0]=' ';
-	
-	if (num>=10000)
-		output[1]='0'+num/10000%10;
-	else
-		output[1]=' ';
-		
-	if (num>=1000)
-		output[2]='0'+num/1000%10;
-	else
-		output[2]=' ';
-	
-	if (num>=100)
-		output[3]='0'+num/100%10;
-	else
-		output[3]=' ';
-	
-	if (num>=10)
-		output[4]='0'+num/10%10;
-	else
-		output[4]=' ';
-	
-	if (num>=1)
-		output[5]='0'+num%10;
-	else
-		output[5]='X';
-}
-
-
-void log_MSG(char status)
-{
-	uint8_t i;
-	if(busyMSG)
+	for(i=0;i<bytes;i++)
 	{
-		for(i=3;i>0 && DSP[i][22]!='B';i--);
-		if(DSP[i][22]=='B')
-			DSP[i][22]=status;
-		else
-			busyMSG=0;
-			
+		raw[i]=i2c_read(1);
 	}
-	log_redraw();
-	busyMSG=0;
-}
-
-
-int32_t calc_temp()
-{
-	uint8_t err=0;//err test
-	int32_t X1,X2;//buffers for translate vals into human readable
-	
-	//measure temp
-	//log_busyMSG("start measuring");
-	i2c_start(WA);
-	err+=i2c_write(0xF4);//we wanna write to control reg.
-	err+=i2c_write(0x2E);//and measure temp
-	//if(err)	{log_failMSG();}
-	//else	{log_okMSG();}
+	raw[i]=i2c_read(0);//this is out last byte
 	i2c_stop();
 	
+	for(i=0;i<=bytes;i++)
+	{
+		sum|=((uint32_t)raw[i])<<(8*(bytes-i));
+	}
+	//sum=((((uint32_t)raw[0])<<16)|(((uint32_t)raw[1])<<8)|(uint32_t)raw[2]);
+	return sum;
 	
-	//delay(5000);//wait for conversion
-	WFC();
+}
+
+
+
+
+
+
+
+int32_t calc_temp()//measures raw value, converts it into human readable value and returns it
+{
+	uint8_t err=0;//err test, only for debug purposes, won't be used
+	int32_t X1,X2;//buffers for translate vals into human readable
+	
+	//proceed temp mesurement 
+	i2c_start(WA);
+	err+=i2c_write(0xF4);//we wanna write to control reg.
+	err+=i2c_write(0x2E);//and initiate temp mesurement
+	i2c_stop();
+	
+	WFC();//wait for EOC
 	
 	//read raw temp value
-	uint16_t UT=getW(0xF6);
-	//converting
+	uint16_t UT=(uint16_t)readNB(0xF6,2);
 	
-	//log_str("raw");
-	//log_num(UT);
-	
+	//converting, this magic formula is copied from sensors datasheet
 	X1=(((int32_t)UT-(int32_t)CV.ac6)*(int32_t)CV.ac5)>>15;
 	X2=((int32_t)CV.mc<<11)/(X1+(int32_t)CV.md);
 	CVC.b5=X1+X2;
 	return((CVC.b5+8)>>4);
 }
 
-long calc_pressure()
+long calc_pressure()//similar to calc_temp, but works with pressure
 {
 	uint8_t err=0;
 	int32_t X1,X2,X3,p;
@@ -259,13 +192,13 @@ long calc_pressure()
 	err+=i2c_write(0x34+(resolution<<6));//and measure pressure
 	i2c_stop();
 	
-	//delay(5000);//wait for conversion....
-	WFC();
+	WFC();//wait for EOC
 	
-	
+	/*
 	//MUST BE MOVED AWAY into func.
 	
 	uint8_t raw_L=0,raw_H=0,raw_X=0;
+	
 	
 	i2c_start(WA);//we wannay say what to read, that is writing... (OMG, silly mistake)
 	i2c_write(0xF6);//read from given addr
@@ -274,19 +207,15 @@ long calc_pressure()
 	raw_L=i2c_read(1);//read byte and will be next
 	raw_X=i2c_read(0);//read byte and no next
 	i2c_stop();//stop
-	raw_p=( ((uint32_t) raw_H << 16) | ((uint32_t) raw_L << 8) | ((uint32_t) raw_X ) )>>(8-resolution); //merge all 3 bytes
+	raw_p=( ((uint32_t) raw_H << 16) | ((uint32_t) raw_L << 8) | ((uint32_t) raw_X ) )>>(8-resolution); //merge all 3 bytes*/
+	raw_p=(readNB(0xF6,3))>>(8-resolution);
 	
 
 	//example_run();
 	//raw_p=23843;
 	
-	
-	//log_num(raw_p);
-	
-	//delay(1000);
-	
-	//main calculation
-	CVC.b6=CVC.b5-4000;
+	//main calculation, formula also copied from sensors datasheet
+	CVC.b6=CVC.b5-4000; //this affects temp. dependency
 	X1=(CV.b2 * ((CVC.b6*CVC.b6)>>12))>>16;
 	X2=(CV.ac2 * CVC.b6)>>11;
 	X3=X1 + X2;
@@ -298,132 +227,21 @@ long calc_pressure()
 	CVC.b4=(CV.ac4 * (uint32_t)(X3 + 32768))>>15;
 	
 	CVC.b7=((uint32_t)(raw_p - CVC.b3) * (50000>>resolution));
-	if (CVC.b7 < 0x80000000)
-	{
-		p=(CVC.b7<<1) / CVC.b4;
-	}
-	else
-	{
-		p=(CVC.b7 / CVC.b4)<<1;
-	}
+	if (CVC.b7 < 0x80000000)	{p=(CVC.b7<<1) / CVC.b4;}
+	else						{p=(CVC.b7 / CVC.b4)<<1;}
 	
 	X1=(p>>8)*(p>>8);
 	X1=(X1 * 3038)>>16;
 	X2=(-7357 * p)>>16;
 	p+=(X1 + X2 + 3791)>>4;//original
-	p+=3400;//fix :D
+	p+=3400;//my sensor has wrong value at output, offset added to fix it, I hope, It'll work ;-)
 
 	return p;
 }
 
-void log_bar(uint8_t per)
-{
-	uint8_t i,j;
-	if(!bar)//bargraph not started, roll to new line
-	{
-		if(DSP[3][0])//roll only with full display
-		{
-		for(i=1;i<4;i++)
-		for(j=0;j<24;j++)
-			DSP[i-1][j]=DSP[i][j];//copy actual to upper line
-		}
-		
-		
-	}
-	
-	
-	for(i=0;i<3  && DSP[i][0] ;i++);//find first empty line, var i stay
-	if(bar && !DSP[i][0])
-		i--;
-	bar=1;
-		for(j=0;j<20;j++)
-		{
-			if(per/5>j)
-				DSP[i][j]='^';
-			else
-				DSP[i][j]=' ';
-		}
-		
-		for(j=20;j<24;j++)
-			DSP[i][j]=' ';
-		
-		if(per/100)
-			DSP[i][20]=48+per/100;
-		if(per/10 )
-			DSP[i][21]=48+per%100/10;
-		DSP[i][22]=48+per%10;
-		DSP[i][23]='\%';
-		
-	if(per>=100)
-		bar=0;
-	log_redraw();
-
-	
-}
-
-void log_str_ex(char* text,uint8_t NL)
-{
-	
-	uint8_t i,j,mezery=0;
-	//shift all lines up
-	if((DSP[3][0])&& NL)//roll only with full display and iw we wanna roll..
-	{
-		for(i=1;i<4;i++)
-		for(j=0;j<24;j++)
-			DSP[i-1][j]=DSP[i][j];//copy actual to upper line
-	}
-
-	
-	//fill last line
-	for(i=0;i<3  && DSP[i][0] ;i++);//find first empty line, var i stays
-		
-	for(j=0;j<24;j++)
-	{
-		if(text[j]=='\0')//after mast char, continue with spaces to the EOL
-			mezery=1;
-		if(!mezery)
-			DSP[i][j]=text[j];
-		else
-			DSP[i][j]=' ';
-	}
-	log_redraw();
-}
-
-void log_busyMSG(char *text)
-{
-	uint8_t i,mezery=0;
-	char Stext[21];
-	char end[3]="[B]";
-	if(busyMSG)
-		log_unkMSG();
-	for(i=0;i<21;i++)
-	{
-		if(text[i]=='\0')
-			mezery=1;
-		if(!mezery)
-			Stext[i]=text[i];
-		else
-			Stext[i]=' ';
-	}
-	for(i=21;i<24;i++)
-		Stext[i]=end[i-21];
-	log_str(Stext);
-	busyMSG=1;
-}
 
 
-
-
-void log_redraw()
-{
-	uint8_t i,j;
-	GOTO(0,0);//redraw from 1st char & line
-	for(j=0;j<4;j++)
-		for(i=0;i<24&&DSP[j][i]!='\0';i++)//redraw all lines, but not continue after empty places
-			znak(DSP[j][i]);
-}
-
-void delay(uint16_t num) //simple delay loop
+void delay(uint16_t num) //simple delay loop, really stupid but works
 {
 	uint16_t i,j;
 	for (i = 0; i < num; i++)
