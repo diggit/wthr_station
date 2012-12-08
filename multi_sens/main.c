@@ -10,8 +10,15 @@
  * License: GNU GPL v3
  ***************************************************************************/
 #include <avr/io.h>
-#include "display_ex.c" //functions for more elegant display output
+#include <avr/interrupt.h>
+//#include "display_ex.c" //functions for more elegant display output
 
+
+
+#define FOSC 16000000UL
+#define BAUD 19200UL
+
+#include "uart_lib.c"
 
 //basic macros for simple bit writing
 #define bit_set(p,m) ((p) |= (m))
@@ -29,11 +36,14 @@
 
 #define resolution 3 //0 fastest - worst, 3 slowest - best
 
+char str_buffer[]="XXXXXXXXXXX\0";
+
 void delay(uint16_t num) ;
 int32_t calc_temp();
 void getCV();
 long calc_pressure();
 uint32_t readNB(uint8_t address, uint8_t bytes);
+char *itos(int32_t num);
 
 struct { //downloaded calibration values
 	int16_t ac1;
@@ -77,38 +87,41 @@ void example_run() //temporary, only for testing of calculations, compare with d
 
 int main (void)
 {
-
-	uint8_t i;
-	lcdinit();
-	CLEAN();
-	log_str("starting...");
-
-	log_busyMSG("reading calib. vals");
+	i2c_init();
+	
 	getCV();
-	log_okMSG();
-	log_str("real temp");
-	//log_num(calc_temp());
 	
 	uint32_t tlak,temp;
-	log_str("pressure:");
+	
+	uart_init();
+	
 	while(1)
 	{
-		//log_str("temperature:");
-		//log_num(calc_temp());
+		//measure and calculate
 		temp=calc_temp();
-		//log_num(987654);
-		
 		tlak=calc_pressure();
-		log_str(itos(tlak));
-		log_str(itos(temp));
-		//log_str(itos(-1234567890)); //just for negative value testing purposes
+		
+		uart_putc('P');
+		uart_puts(itos(tlak));
+		uart_putc('T');
+		uart_puts(itos(temp));
+		uart_putc('\n');
+		
+		//put it on display (will be changed to UART)
+		//log_str(itos(tlak));
+		//log_str(itos(temp));
 		delay(10000);
 	}	
 	
 	return 0;
 }
 
-void getCV()
+ISR(USART_RXC_vect)
+{
+	;
+}
+
+void getCV()//downloads cCalibration Values from sensor
 {
 	CV.ac1 = readNB(0xAA,2);
 	CV.ac2 = readNB(0xAC,2);
@@ -125,7 +138,7 @@ void getCV()
 
 
 
-uint32_t readNB(uint8_t reg_addr, uint8_t bytes)
+uint32_t readNB(uint8_t reg_addr, uint8_t bytes)//reads 'bytes' bytes (up to 4) from address defined byRA/WA beginning on given register address 
 {
 	uint8_t raw[]={0,0,0,0};//moximal 4 bytes to read
 	uint32_t sum=0;
@@ -148,15 +161,9 @@ uint32_t readNB(uint8_t reg_addr, uint8_t bytes)
 	{
 		sum|=((uint32_t)raw[i])<<(8*(bytes-i));
 	}
-	//sum=((((uint32_t)raw[0])<<16)|(((uint32_t)raw[1])<<8)|(uint32_t)raw[2]);
 	return sum;
 	
 }
-
-
-
-
-
 
 
 int32_t calc_temp()//measures raw value, converts it into human readable value and returns it
@@ -195,20 +202,6 @@ long calc_pressure()//similar to calc_temp, but works with pressure
 	
 	WFC();//wait for EOC
 	
-	/*
-	//MUST BE MOVED AWAY into func.
-	
-	uint8_t raw_L=0,raw_H=0,raw_X=0;
-	
-	
-	i2c_start(WA);//we wannay say what to read, that is writing... (OMG, silly mistake)
-	i2c_write(0xF6);//read from given addr
-	i2c_rep_start(RA);//restart i2c comm.
-	raw_H=i2c_read(1);//read byte and will be next
-	raw_L=i2c_read(1);//read byte and will be next
-	raw_X=i2c_read(0);//read byte and no next
-	i2c_stop();//stop
-	raw_p=( ((uint32_t) raw_H << 16) | ((uint32_t) raw_L << 8) | ((uint32_t) raw_X ) )>>(8-resolution); //merge all 3 bytes*/
 	raw_p=(readNB(0xF6,3))>>(8-resolution);
 	
 
@@ -240,12 +233,44 @@ long calc_pressure()//similar to calc_temp, but works with pressure
 	return p;
 }
 
-
-
 void delay(uint16_t num) //simple delay loop, really stupid but works
 {
 	uint16_t i,j;
 	for (i = 0; i < num; i++)
 		for (j=0;j<100;j++)
 		;
+}
+
+char *itos(int32_t num)
+{
+	//str_buffer="GGGGGGGGGGGGGGG";
+	//str_buffer if char. array buffer	
+	
+	if(num<0)
+	{
+		num*=-1;//make it positive
+		str_buffer[0]='-';
+	}
+	else
+	{
+		str_buffer[0]='+';//positive means no sign
+	}
+	
+	uint8_t index=1;
+	uint32_t divider=1000000000;
+	while(divider>0)
+	{
+		if(num>divider)
+		{
+			str_buffer[index]='0'+(num/divider)%10;
+			index++;
+		}
+		
+		divider/=10;//divide divider by 10, for next calcs.
+		
+	}
+	if(index<10)
+	{str_buffer[index]='\0';}
+
+	return str_buffer;
 }

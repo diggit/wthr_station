@@ -1,6 +1,6 @@
-#include "pcf857x.c"
+#include "pcf857x.c"  //main library for access to display
 
-#include "display_ex.h"
+#include "display_ex.h" //declarations of functions
 
 
 
@@ -20,7 +20,7 @@ void log_bar(uint8_t per)
 	}
 	
 	
-	for(i=0;i<3  && DSP[i][0] ;i++);//find first empty line, var i stay
+	for(i=0;i<3  && DSP[i][0] ;i++);//find first empty line, var i stays
 	if(bar && !DSP[i][0])
 		i--;
 	bar=1;
