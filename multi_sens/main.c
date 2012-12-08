@@ -99,9 +99,10 @@ int main (void)
 		//log_num(987654);
 		
 		tlak=calc_pressure();
-		log_num(tlak);
-		log_num(temp);
-		delay(5000);
+		log_str(itos(tlak));
+		log_str(itos(temp));
+		//log_str(itos(-1234567890)); //just for negative value testing purposes
+		delay(10000);
 	}	
 	
 	return 0;

@@ -124,44 +124,36 @@ void log_MSG(char status)
 	busyMSG=0;
 }
 
-void log_num_ex(int32_t number,uint8_t tmp)
+char *itos(int32_t num)
 {
-	char buff[]="QQQQQQ";
-	itos(number,buff);
-	log_str_ex(buff,tmp);
-}
-
-void itos(uint32_t num, char *output)
-{
-	//char output[]="12345";
+	//str_buffer="GGGGGGGGGGGGGGG";
+	//str_buffer if char. array buffer	
 	
-	if (num>=100000)
-		output[0]='0'+num/100000;
+	if(num<0)
+	{
+		num*=-1;//make it positive
+		str_buffer[0]='-';
+	}
 	else
-		output[0]=' ';
+	{
+		str_buffer[0]=' ';//positive means no sign
+	}
 	
-	if (num>=10000)
-		output[1]='0'+num/10000%10;
-	else
-		output[1]=' ';
+	uint8_t index=1;
+	uint32_t divider=1000000000;
+	while(divider>0)
+	{
+		if(num>divider)
+		{
+			str_buffer[index]='0'+(num/divider)%10;
+			index++;
+		}
 		
-	if (num>=1000)
-		output[2]='0'+num/1000%10;
-	else
-		output[2]=' ';
-	
-	if (num>=100)
-		output[3]='0'+num/100%10;
-	else
-		output[3]=' ';
-	
-	if (num>=10)
-		output[4]='0'+num/10%10;
-	else
-		output[4]=' ';
-	
-	if (num>=1)
-		output[5]='0'+num%10;
-	else
-		output[5]='X';
+		divider/=10;//divide divider by 10, for next calcs.
+		
+	}
+	if(index<10)
+	{str_buffer[index]='\0';}
+
+	return str_buffer;
 }
