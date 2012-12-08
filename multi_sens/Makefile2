@@ -1,4 +1,0 @@
-vr-gcc -c -mmcu=atmega8 -I. -gdwarf-2 -DF_CPU=12000000UL -Os -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums -Wall -Wstrict-prototypes -Wa,-adhlns=./pcf857x.lst -std=gnu99 -Wundef -MMD -MP -MF .dep/pcf857x.o.d pcf857x.c -o pcf857x.o
- avr-gcc -c -mmcu=atmega8 -I. -gdwarf-2 -DF_CPU=12000000UL -Os -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums -Wall -Wstrict-prototypes -Wa,-adhlns=./main.lst -std=gnu99 -Wundef -MMD -MP -MF .dep/main.o.d main.c -o main.o
-  avr-gcc -mmcu=atmega8 -I. -gdwarf-2 -DF_CPU=12000000UL -Os -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums -Wall -Wstrict-prototypes -Wa,-adhlns=pcf857x.o -std=gnu99 -Wundef -MMD -MP -MF .dep/main.elf.d pcf857x.o main.o --output main.elf -Wl,-Map=main.map,--cref -lm
-   avr-objcopy -O ihex -R .eeprom -R .fuse -R .lock main.elf main.hex
