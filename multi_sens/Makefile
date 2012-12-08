@@ -1,7 +1,7 @@
 PRG            = main
 OBJ            = main.o
 MCU_TARGET     = atmega8
-OPTIMIZE       = -O0
+OPTIMIZE       = -O2
 
 # You should not have to change anything below here.
 

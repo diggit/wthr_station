@@ -13,8 +13,6 @@
 #include <avr/interrupt.h>
 //#include "display_ex.c" //functions for more elegant display output
 
-
-
 #define FOSC 16000000UL
 #define BAUD 19200UL
 
@@ -23,6 +21,9 @@
 //basic macros for simple bit writing
 #define bit_set(p,m) ((p) |= (m))
 #define bit_clr(p,m) ((p) &= ~(m))
+
+
+#define DHT_START() bit_set(DDRB,2); bit_clr(PORTB,2); delay_p(1000*20); bit_set(PORTB,2); delay_p(4*10); bit_clr(DDRB,2); //sholdn't be PORTB bit 2 cleared too?
 
 //i2c library for communication
 #include "i2cmaster.c"
@@ -37,6 +38,8 @@
 #define resolution 3 //0 fastest - worst, 3 slowest - best
 
 char str_buffer[]="XXXXXXXXXXX\0";
+
+int8_t response[5]={0,0,0,0};//init with zeros
 
 void delay(uint16_t num) ;
 int32_t calc_temp();
@@ -85,6 +88,58 @@ void example_run() //temporary, only for testing of calculations, compare with d
 	CV.md=2868;
 }
 
+void delay_p(unsigned long delay)//takes 8 cycles, at 16MHz means half of micro second (freq*time)/repeated
+{
+	delay=delay<<1;//multiply by 2 to get 1uS delay
+	while(delay--) {asm volatile("nop");asm volatile("nop");}
+};
+
+void DHT()
+{
+	
+	uint8_t i,j;
+	
+	//"say hello"
+	DHT_START();
+	//expect ACK
+	while(PINB&2);//wait for pull down
+	while(!(PINB&2));//wait for pull up
+	while(PINB&2);//wait for pull down
+	//init complete
+	//link is onw pulled down by DHT
+	
+	//recieve 40bits
+	for(j=0;j<5;j++)
+	{
+		response[j]=0;//erase old value
+		for(i=0;i<8;i++)
+		{
+			response[j]=response[j]<<1;//shift left - prepare for new bit
+			while(!(PINB&2));//wait for pull up
+			delay_p(50);
+			if(PINB&2)//i still pulled up>longer pulse>LOG1
+			{
+				response[j]|=1;//set lowest bit
+				while(PINB&2);//wait for pull down
+			}
+			//else //already pulled down > shorter pulse > LOG0 , zero is hopefuly there (default)
+
+			
+		}
+	}
+	//link is down
+	//end event check
+	while(!(PINB&2));//wait for pull up
+	//delay_p(20000);//after some time, it should remain pulled up, still
+	//if(PINB&2){uart_puts("yeah");}
+	//else{uart_puts("noooo");}
+	
+	
+	//return 0;
+	
+	
+}
+
 int main (void)
 {
 	i2c_init();
@@ -101,16 +156,34 @@ int main (void)
 		temp=calc_temp();
 		tlak=calc_pressure();
 		
+		
+		uart_puts("BMP085\n");
 		uart_putc('P');
 		uart_puts(itos(tlak));
 		uart_putc('T');
 		uart_puts(itos(temp));
 		uart_putc('\n');
+		DHT();
+		uart_puts("DHT11\n");
+		uart_putc('H');
+		uart_puts(itos(response[0]));
+		uart_putc('.');
+		uart_puts(itos(response[1]));
+		uart_putc('T');
+		uart_puts(itos(response[2]));
+		uart_putc('.');
+		uart_puts(itos(response[3]));
+		uart_putc('C');
+		uart_puts(itos(response[4]));
+		uart_putc('\n');
+		
+		
+		
 		
 		//put it on display (will be changed to UART)
 		//log_str(itos(tlak));
 		//log_str(itos(temp));
-		delay(10000);
+		delay_p(3000000);
 	}	
 	
 	return 0;
@@ -246,31 +319,41 @@ char *itos(int32_t num)
 	//str_buffer="GGGGGGGGGGGGGGG";
 	//str_buffer if char. array buffer	
 	
+	uint8_t index=0;
+	
 	if(num<0)
 	{
 		num*=-1;//make it positive
-		str_buffer[0]='-';
+		str_buffer[index]='-';
+		index++;
 	}
+	/*
 	else
 	{
 		str_buffer[0]='+';//positive means no sign
+	}*/
+	
+	if(num==0)
+	{
+		str_buffer[index]='0';
+		str_buffer[index+1]='\0';
+	}
+	else{
+		uint32_t divider=1000000000;
+		while(divider>0)
+		{
+			if(num>divider)
+			{
+				str_buffer[index]='0'+(num/divider)%10;
+				index++;
+			}
+			
+			divider/=10;//divide divider by 10, for next calcs.
+			
+		}
+		if(index<10)
+		{str_buffer[index]='\0';}
 	}
 	
-	uint8_t index=1;
-	uint32_t divider=1000000000;
-	while(divider>0)
-	{
-		if(num>divider)
-		{
-			str_buffer[index]='0'+(num/divider)%10;
-			index++;
-		}
-		
-		divider/=10;//divide divider by 10, for next calcs.
-		
-	}
-	if(index<10)
-	{str_buffer[index]='\0';}
-
 	return str_buffer;
 }
