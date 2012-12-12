@@ -11,10 +11,13 @@
  ***************************************************************************/
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/sleep.h>
 //#include "display_ex.c" //functions for more elegant display output
 
 #define FOSC 16000000UL
 #define BAUD 19200UL
+
+#define UA_RX_INT_EN 1 //enable UART recieve INT
 
 #include "uart_lib.c"
 
@@ -23,7 +26,7 @@
 #define bit_clr(p,m) ((p) &= ~(m))
 
 
-#define DHT_START() bit_set(DDRB,2); bit_clr(PORTB,2); delay_p(1000*20); bit_set(PORTB,2); delay_p(4*10); bit_clr(DDRB,2); //sholdn't be PORTB bit 2 cleared too?
+#define DHT_START(b) bit_set(DDRC,b); bit_clr(PORTC,b); delay_p(1000*20); bit_set(PORTC,b); delay_p(4*10); bit_clr(DDRC,b); //sholdn't be PORTC bit 2 cleared too?
 
 //i2c library for communication
 #include "i2cmaster.c"
@@ -39,7 +42,7 @@
 
 char str_buffer[]="XXXXXXXXXXX\0";
 
-int8_t response[5]={0,0,0,0};//init with zeros
+int8_t response[5]={0,0,0,0};//init with zeros, buffer for DHT11
 
 void delay(uint16_t num) ;
 int32_t calc_temp();
@@ -70,8 +73,6 @@ struct{//calibration values calculated
 	int32_t b3;
 } CVC;
 
-
-
 void example_run() //temporary, only for testing of calculations, compare with datasheet
 {
 	CVC.b5=2399;
@@ -92,35 +93,35 @@ void delay_p(unsigned long delay)//takes 8 cycles, at 16MHz means half of micro 
 {
 	delay=delay<<1;//multiply by 2 to get 1uS delay
 	while(delay--) {asm volatile("nop");asm volatile("nop");}
-};
+};//dont try to optimize, it's calibrated! (gcc -O2)
 
-void DHT()
+void DHT(uint8_t bit)
 {
 	
 	uint8_t i,j;
 	
 	//"say hello"
-	DHT_START();
+	DHT_START(1<<bit);
 	//expect ACK
-	while(PINB&2);//wait for pull down
-	while(!(PINB&2));//wait for pull up
-	while(PINB&2);//wait for pull down
+	while(PINC&(1<<bit));//wait for pull down
+	while(!(PINC&(1<<bit)));//wait for pull up
+	while(PINC&(1<<bit));//wait for pull down
 	//init complete
 	//link is onw pulled down by DHT
 	
-	//recieve 40bits
+	//recieve 40(1<<bit)s
 	for(j=0;j<5;j++)
 	{
 		response[j]=0;//erase old value
 		for(i=0;i<8;i++)
 		{
-			response[j]=response[j]<<1;//shift left - prepare for new bit
-			while(!(PINB&2));//wait for pull up
+			response[j]=response[j]<<1;//shift left - prepare for new (1<<bit)
+			while(!(PINC&(1<<bit)));//wait for pull up
 			delay_p(50);
-			if(PINB&2)//i still pulled up>longer pulse>LOG1
+			if(PINC&(1<<bit))//i still pulled up>longer pulse>LOG1
 			{
-				response[j]|=1;//set lowest bit
-				while(PINB&2);//wait for pull down
+				response[j]|=1;//set lowest (1<<bit)
+				while(PINC&(1<<bit));//wait for pull down
 			}
 			//else //already pulled down > shorter pulse > LOG0 , zero is hopefuly there (default)
 
@@ -129,69 +130,60 @@ void DHT()
 	}
 	//link is down
 	//end event check
-	while(!(PINB&2));//wait for pull up
+	while(!(PINC&(1<<bit)));//wait for pull up
 	//delay_p(20000);//after some time, it should remain pulled up, still
-	//if(PINB&2){uart_puts("yeah");}
+	//if(PINC&2){uart_puts("yeah");}
 	//else{uart_puts("noooo");}
-	
-	
-	//return 0;
-	
 	
 }
 
+
 int main (void)
 {
-	i2c_init();
+	uart_init();//init UART
 	
-	getCV();
+	i2c_init();//bring up I2C
 	
-	uint32_t tlak,temp;
+	getCV();//download callibration values from BMP085
+	calc_temp();//initial reading
+	calc_pressure();
 	
-	uart_init();
+	set_sleep_mode(SLEEP_MODE_IDLE); //choose most suitable sleep mode - IDLE (still running UART)
+	sleep_enable();//enable sleeping
 	
-	while(1)
+	
+	sei(); //enable interrupt, mainly for UART RX
+
+	
+	while(1)//sleep it after interrupt again and again
 	{
-		//measure and calculate
-		temp=calc_temp();
-		tlak=calc_pressure();
-		
-		
-		uart_puts("BMP085\n");
-		uart_putc('P');
-		uart_puts(itos(tlak));
-		uart_putc('T');
-		uart_puts(itos(temp));
-		uart_putc('\n');
-		DHT();
-		uart_puts("DHT11\n");
-		uart_putc('H');
-		uart_puts(itos(response[0]));
-		uart_putc('.');
-		uart_puts(itos(response[1]));
-		uart_putc('T');
-		uart_puts(itos(response[2]));
-		uart_putc('.');
-		uart_puts(itos(response[3]));
-		uart_putc('C');
-		uart_puts(itos(response[4]));
-		uart_putc('\n');
-		
-		
-		
-		
-		//put it on display (will be changed to UART)
-		//log_str(itos(tlak));
-		//log_str(itos(temp));
-		delay_p(3000000);
+		//uart_puts("sleeping\n");//debug
+		sleep_enable();
+		sleep_cpu();//MCU is awaken on every interrupt, this will sleep it back again...
 	}	
 	
 	return 0;
 }
 
-ISR(USART_RXC_vect)
+ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will be in idle mode, (maybe sleeping - should be implemented)
 {
-	;
+	if(UDR=='Q')//send data as response fo Query
+	{
+		uart_puts("MULTISNS1,P0,");//some ID
+		uart_puts(itos(calc_pressure()));
+		uart_puts(",T0,");
+		uart_puts(itos(calc_temp()));
+		uart_puts(",H0,");
+		DHT(0);
+		uart_puts(itos(response[0]));
+		
+		uart_puts(",H1,");
+		DHT(1);
+		uart_puts(itos(response[0]));
+		uart_puts(",$\n");
+		
+	}
+	else uart_puts("send Q to get data\n");
 }
 
 void getCV()//downloads cCalibration Values from sensor
@@ -208,8 +200,6 @@ void getCV()//downloads cCalibration Values from sensor
 	CV.mc = readNB(0xBC,2);
 	CV.md = readNB(0xBE,2);
 }
-
-
 
 uint32_t readNB(uint8_t reg_addr, uint8_t bytes)//reads 'bytes' bytes (up to 4) from address defined byRA/WA beginning on given register address 
 {
@@ -235,7 +225,6 @@ uint32_t readNB(uint8_t reg_addr, uint8_t bytes)//reads 'bytes' bytes (up to 4) 
 		sum|=((uint32_t)raw[i])<<(8*(bytes-i));
 	}
 	return sum;
-	
 }
 
 
@@ -276,7 +265,6 @@ long calc_pressure()//similar to calc_temp, but works with pressure
 	WFC();//wait for EOC
 	
 	raw_p=(readNB(0xF6,3))>>(8-resolution);
-	
 
 	//example_run();
 	//raw_p=23843;
@@ -315,10 +303,7 @@ void delay(uint16_t num) //simple delay loop, really stupid but works
 }
 
 char *itos(int32_t num)
-{
-	//str_buffer="GGGGGGGGGGGGGGG";
-	//str_buffer if char. array buffer	
-	
+{		
 	uint8_t index=0;
 	
 	if(num<0)
@@ -331,6 +316,7 @@ char *itos(int32_t num)
 	else
 	{
 		str_buffer[0]='+';//positive means no sign
+		index++;
 	}*/
 	
 	if(num==0)
@@ -354,6 +340,5 @@ char *itos(int32_t num)
 		if(index<10)
 		{str_buffer[index]='\0';}
 	}
-	
 	return str_buffer;
 }
