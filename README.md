@@ -6,7 +6,7 @@ Final project on secondary school, meteorological/weather station with web acces
 ## Can be divided into two main parts:
 * Sensors with MCU outside, collecting various values
 * Software running on RaspberryPi, grabs values from sensor "module",
-    stores them in mysql database and puhblishs them onto webpage.
+    stores them in mysql database and publishes them on web.
 
 ## Material here :
 
