@@ -1,0 +1,1 @@
+This is root of web application, here should be located YUI library (directory called build) can be downloaded here: http://yuilibrary.com/ . Or change path to it in index file.
