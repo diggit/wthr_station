@@ -1,6 +1,6 @@
 /***************************************************************************
  * Desc: Program for controller Atmega8, it will be placed near sensors,
- * reads raw values, converts them a after request, sends them back over UART
+ * reads raw values, converts them and on masters request, sends them back over UART
  * USED sensors are: temperature and pressure digital i2c sensor BMP085
  * humidity digital sensor DHT11
  * 
@@ -13,10 +13,12 @@
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
 //#include "display_ex.c" //functions for more elegant display output
+#include <avr/wdt.h>
+
+#define Reset_AVR() wdt_enable(WDTO_30MS); while(1) {}
 
 #define FOSC 16000000UL
 #define BAUD 19200UL
-
 #define UA_RX_INT_EN 1 //enable UART recieve INT
 
 #include "uart_lib.c"
@@ -24,9 +26,6 @@
 //basic macros for simple bit writing
 #define bit_set(p,m) ((p) |= (m))
 #define bit_clr(p,m) ((p) &= ~(m))
-
-
-#define DHT_START(b) bit_set(DDRC,b); bit_clr(PORTC,b); delay_p(1000*20); bit_set(PORTC,b); delay_p(4*10); bit_clr(DDRC,b); //sholdn't be PORTC bit 2 cleared too?
 
 //i2c library for communication
 #include "i2cmaster.c"
@@ -37,12 +36,15 @@
 
 //waiting for signal that indicates End Of Conversion on pin PB0
 #define WFC(); while( !(PINB & 1) ); //Wait For Conversion
+//DHT start sequence
+#define DHT_START(b) bit_set(DDRC,b); bit_clr(PORTC,b); delay_p(1000*20); bit_set(PORTC,b); delay_p(4*10); bit_clr(DDRC,b); //sholdn't be PORTC bit 2 cleared too?
 
+//resolution of BMP085 pressure measurement
 #define resolution 3 //0 fastest - worst, 3 slowest - best
 
 char str_buffer[]="XXXXXXXXXXX\0";
 
-int8_t response[5]={0,0,0,0};//init with zeros, buffer for DHT11
+int8_t response[5]={0,0,0,0,0};//init with zeros, buffer for DHT11
 
 void delay(uint16_t num) ;
 int32_t calc_temp();
@@ -50,6 +52,7 @@ void getCV();
 long calc_pressure();
 uint32_t readNB(uint8_t address, uint8_t bytes);
 char *itos(int32_t num);
+void DHT(uint8_t bit);
 
 struct { //downloaded calibration values
 	int16_t ac1;
@@ -73,27 +76,42 @@ struct{//calibration values calculated
 	int32_t b3;
 } CVC;
 
-void example_run() //temporary, only for testing of calculations, compare with datasheet
-{
-	CVC.b5=2399;
-	CV.ac1=408;
-	CV.ac2=-72;
-	CV.ac3=-14383;
-	CV.ac4=32741;
-	CV.ac5=32757;
-	CV.ac6=23153;
-	CV.b1=6190;
-	CV.b2=4;
-	CV.mb=-32767;
-	CV.mc=-8711;
-	CV.md=2868;
-}
 
 void delay_p(unsigned long delay)//takes 8 cycles, at 16MHz means half of micro second (freq*time)/repeated
 {
 	delay=delay<<1;//multiply by 2 to get 1uS delay
 	while(delay--) {asm volatile("nop");asm volatile("nop");}
 };//dont try to optimize, it's calibrated! (gcc -O2)
+
+
+
+
+int main (void)
+{
+	uart_init();//init UART
+	uart_puts("booted\n");
+	i2c_init();//bring up I2C
+	
+	getCV();//download callibration values from BMP085
+	calc_temp();//initial reading
+	calc_pressure();
+	
+	set_sleep_mode(SLEEP_MODE_IDLE); //choose most suitable sleep mode - IDLE (still running UART)
+	sleep_enable();//enable sleeping
+	
+	
+	sei(); //enable interrupt, mainly for UART RX
+
+	uart_puts("starting\n");
+	while(1)//sleep it after interrupt again and again
+	{
+		uart_puts("sleeping\n");//debug
+		sleep_enable();
+		sleep_cpu();//MCU is awaken on every interrupt, this will sleep it back again...
+	}	
+	
+	return 0;
+}
 
 void DHT(uint8_t bit)
 {
@@ -137,42 +155,16 @@ void DHT(uint8_t bit)
 	
 }
 
-
-int main (void)
-{
-	uart_init();//init UART
-	
-	i2c_init();//bring up I2C
-	
-	getCV();//download callibration values from BMP085
-	calc_temp();//initial reading
-	calc_pressure();
-	
-	set_sleep_mode(SLEEP_MODE_IDLE); //choose most suitable sleep mode - IDLE (still running UART)
-	sleep_enable();//enable sleeping
-	
-	
-	sei(); //enable interrupt, mainly for UART RX
-
-	
-	while(1)//sleep it after interrupt again and again
-	{
-		//uart_puts("sleeping\n");//debug
-		sleep_enable();
-		sleep_cpu();//MCU is awaken on every interrupt, this will sleep it back again...
-	}	
-	
-	return 0;
-}
-
 ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will be in idle mode, (maybe sleeping - should be implemented)
 {
-	if(UDR=='Q')//send data as response fo Query
+	cli();
+	char reply=UDR;
+	if(reply=='Q')//send data as response fo Query
 	{
-		uart_puts("MULTISNS1,P0,");//some ID
-		uart_puts(itos(calc_pressure()));
-		uart_puts(",T0,");
+		uart_puts("!,MULTISNS1,T0,");//some ID
 		uart_puts(itos(calc_temp()));
+		uart_puts(",P0,");
+		uart_puts(itos(calc_pressure()));
 		uart_puts(",H0,");
 		DHT(0);
 		uart_puts(itos(response[0]));
@@ -183,10 +175,16 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 		uart_puts(",$\n");
 		
 	}
-	else uart_puts("send Q to get data\n");
+	else if (reply=='R')
+	{
+		uart_puts("Resetting...");
+		Reset_AVR();
+	}
+	else uart_puts("send Q to get data or R for reset\n");
+	sei();
 }
 
-void getCV()//downloads cCalibration Values from sensor
+void getCV()//downloads Calibration Values from sensor
 {
 	CV.ac1 = readNB(0xAA,2);
 	CV.ac2 = readNB(0xAC,2);
@@ -201,9 +199,9 @@ void getCV()//downloads cCalibration Values from sensor
 	CV.md = readNB(0xBE,2);
 }
 
-uint32_t readNB(uint8_t reg_addr, uint8_t bytes)//reads 'bytes' bytes (up to 4) from address defined byRA/WA beginning on given register address 
+uint32_t readNB(uint8_t reg_addr, uint8_t bytes)//reads 'bytes' bytes (up to 4) from address defined by RA/WA beginning on given register address 
 {
-	uint8_t raw[]={0,0,0,0};//moximal 4 bytes to read
+	uint8_t raw[]={0,0,0,0};//maximal 4 bytes to read
 	uint32_t sum=0;
 	uint8_t i;//some index var.
 	if(bytes>4){bytes=4;} //higher vals. shrink to 4
@@ -218,9 +216,9 @@ uint32_t readNB(uint8_t reg_addr, uint8_t bytes)//reads 'bytes' bytes (up to 4) 
 		raw[i]=i2c_read(1);
 	}
 	raw[i]=i2c_read(0);//this is out last byte
-	i2c_stop();
+	i2c_stop();//end i2c communication
 	
-	for(i=0;i<=bytes;i++)
+	for(i=0;i<=bytes;i++)//merge all recieved data into single value
 	{
 		sum|=((uint32_t)raw[i])<<(8*(bytes-i));
 	}
@@ -244,7 +242,7 @@ int32_t calc_temp()//measures raw value, converts it into human readable value a
 	//read raw temp value
 	uint16_t UT=(uint16_t)readNB(0xF6,2);
 	
-	//converting, this magic formula is copied from sensors datasheet
+	//converting, this magic formula was copied from sensors datasheet
 	X1=(((int32_t)UT-(int32_t)CV.ac6)*(int32_t)CV.ac5)>>15;
 	X2=((int32_t)CV.mc<<11)/(X1+(int32_t)CV.md);
 	CVC.b5=X1+X2;
