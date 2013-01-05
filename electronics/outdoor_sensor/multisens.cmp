@@ -1,0 +1,150 @@
+Cmp-Mod V01 Created by CvPcb (2012-jan-04)-stable date = Sat Jan  5 19:28:25 2013
+
+BeginCmp
+TimeStamp = /50DF0288;
+Reference = BL_LED1;
+ValeurCmp = LED;
+IdModule  = led-LED3MM;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE1779;
+Reference = BMP1;
+ValeurCmp = CONN_6;
+IdModule  = PIN_ARRAY-6X1;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE18C9;
+Reference = C1;
+ValeurCmp = CP1;
+IdModule  = SMDHD/VF;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE18B1;
+Reference = C2;
+ValeurCmp = C;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE1ABB;
+Reference = C3;
+ValeurCmp = CP1;
+IdModule  = SMDHD/VF;
+EndCmp
+
+BeginCmp
+TimeStamp = /50DB7474;
+Reference = C4;
+ValeurCmp = C;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE3193;
+Reference = Cx1;
+ValeurCmp = C;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE3194;
+Reference = Cx2;
+ValeurCmp = C;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE19F7;
+Reference = D1;
+ValeurCmp = DIODE;
+IdModule  = Diode-MiniMELF_Handsoldering_RevA_27July2010;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE14C9;
+Reference = DHT1;
+ValeurCmp = CONN_4;
+IdModule  = PIN_ARRAY_4x1;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE140E;
+Reference = IC1;
+ValeurCmp = ATMEGA8-MI;
+IdModule  = atmega8-TQFP32-08;
+EndCmp
+
+BeginCmp
+TimeStamp = /50E83B35;
+Reference = ISP1;
+ValeurCmp = CONN_6;
+IdModule  = PIN_ARRAY-6X1;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE3254;
+Reference = MAIN1;
+ValeurCmp = CONN_4;
+IdModule  = PIN_ARRAY_4x1;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE2FDA;
+Reference = PUP1;
+ValeurCmp = R;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE2FDD;
+Reference = PUP2;
+ValeurCmp = R;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /50DB73B3;
+Reference = rain_gauge1;
+ValeurCmp = CONN_2;
+IdModule  = PIN_ARRAY_2X1;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE18A4;
+Reference = R_LED1;
+ValeurCmp = R;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE17A9;
+Reference = U1;
+ValeurCmp = 7805;
+IdModule  = v-reg-2-SO08;
+EndCmp
+
+BeginCmp
+TimeStamp = /50DB71C5;
+Reference = wind_dir1;
+ValeurCmp = CONN_6;
+IdModule  = PIN_ARRAY-6X1;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE1905;
+Reference = wind_speed1;
+ValeurCmp = CONN_3;
+IdModule  = PIN_ARRAY_3X1;
+EndCmp
+
+BeginCmp
+TimeStamp = /50CE31C2;
+Reference = Xtal1;
+ValeurCmp = 16MHz;
+IdModule  = Crystal_HC49-SD_SMD_RevA_09Aug2010;
+EndCmp
+
+EndListe
