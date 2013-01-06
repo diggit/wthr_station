@@ -100,20 +100,20 @@ if(60%MINUTE_STEP):
 
 #program flow continues below funcion defs
 
-def gen_page(raw):
+def gen_page(raw,F,VarName):
 	if debug:
 		print("generating output file")
 	raw.reverse()
 	if debug:
 		print("opening file...")
-	out=open("web_app/values.js","w")
+	out=open("web_app/"+F,"w")
 	if debug:
 		print("output file name:",out.name)
 		
-	out.write("var myDataValues = [")
+	out.write("var "+VarName+" = [")
 	
 	
-	out.write("\n{date:\""+str(raw[0][0]))
+	out.write("\n{date:\""+str(raw[0][0])[5:16]+"\", val:"+str(round(raw[0][1],1))+"},")
 	if debug:
 		print(raw[0][0])
 		print("first record, will be complete...")
@@ -143,12 +143,12 @@ def gen_page(raw):
 			if(Tmonth!=Pmonth or Tday!=Pday or (Thour-Phour)>1 or (Thour==Phour and (Tmin-Pmin)!=MINUTE_STEP ) or ((Thour-Phour==1) and (Pmin+MINUTE_STEP!=60))):
 				if debug:
 					print("date will be recorded ---------------^^")
-				out.write("\n{date:\""+Tdate)
+				out.write("\n{date:\""+Tdate[5:16])
 			else:#date won't be written
 				if debug:
 					print("no date, but will be recorded -------^^")
 				out.write("\n{date:\"")
-			out.write("\", temp:"+str(round(raw[Nline][1],1))+"},")
+			out.write("\", val:"+str(round(raw[Nline][1],1))+"},")
 	out.seek(out.tell()-1)
 	out.write("\n];\n")
 	out.close()
@@ -216,14 +216,24 @@ if RCVD[0]=='!' and RCVD[-1]=='$':#first char is "!" and last one "$", yeah it i
 	
 	if debug:
 		print("requesting data from db")
+	
 	curs.execute("SELECT stamp,T0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
 	tmsg=curs.fetchall() #recieve this
+	
+	curs.execute("SELECT stamp,P0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
+	pmsg=curs.fetchall() #recieve this
+	
+	curs.execute("SELECT stamp,H0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
+	hmsg=curs.fetchall() #recieve this
+	
 	if debug:
-		print("recieved:\n",tmsg)
+		print("recieved")
 	curs.close()#destruct cursor
 	conn.close()#disconnect from db
 	if debug:
 		print("db connection closed")
 	
 
-	gen_page(tmsg)#generate file with JS array of those values for web
+	gen_page(tmsg,"temp.js","tempVals")#generate file with JS array of those values for web
+	gen_page(pmsg,"pres.js","presVals")#generate file with JS array of those values for web
+	gen_page(hmsg,"humi.js","humiVals")#generate file with JS array of those values for web
