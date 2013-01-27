@@ -44,3 +44,16 @@ void uart_init(void)
 	//URSEL MUST! by written when we really want to write into UCSRC and no into UBRRH (they are shared, URSEL selects in 1 UCSRC)
 
 }
+void uart_flush()
+{
+	/*
+	char dummy;
+	while( UCSRA & (1<<RXC))
+	{
+		dummy=UDR;
+		//dummy=dummy;
+	}*/
+	UCSRB &= ~(1<<RXEN);
+	UCSRB |= (1<<RXEN);
+	
+}
