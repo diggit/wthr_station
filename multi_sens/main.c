@@ -35,14 +35,26 @@
 #define WA 0b11101110
 
 //waiting for signal that indicates End Of Conversion on pin PB0
-#define WFC(); while( !(PINB & 1) ); //Wait For Conversion
+#define WFC() while( !(PINC & 2) )_NOP //Wait For Conversion
 //DHT start sequence
-#define DHT_START(b) bit_set(DDRC,b); bit_clr(PORTC,b); delay_p(1000*20); bit_set(PORTC,b); delay_p(4*10); bit_clr(DDRC,b); //sholdn't be PORTC bit 2 cleared too?
+
+#define _NOP asm volatile("NOP");
+
+#define DHTP PORTB
+#define DHTD DDRB
+#define DHTI PINB
+#define DHT_START(b) bit_set(DHTD,b); delay_p(1000*30); bit_clr(DHTD,b); delay_p(4*10)//; bit_clr(DHTD,b)//; bit_clr(DHTP,b) //shouldn't be DHTP (pull-up) bit 2 cleared too?
 
 //resolution of BMP085 pressure measurement
 #define resolution 3 //0 fastest - worst, 3 slowest - best
 
 char str_buffer[]="XXXXXXXXXXX\0";
+
+//error codes definition
+#define I2C_start_err	1
+#define DHT_err			2
+
+
 
 int8_t response[5]={0,0,0,0,0};//init with zeros, buffer for DHT11
 
@@ -53,6 +65,7 @@ long calc_pressure();
 uint32_t readNB(uint8_t address, uint8_t bytes);
 char *itos(int32_t num);
 void DHT(uint8_t bit);
+void handleERROR(uint8_t ERROR_code);
 
 struct { //downloaded calibration values
 	int16_t ac1;
@@ -80,7 +93,7 @@ struct{//calibration values calculated
 void delay_p(unsigned long delay)//takes 8 cycles, at 16MHz means half of micro second (freq*time)/repeated
 {
 	delay=delay<<1;//multiply by 2 to get 1uS delay
-	while(delay--) {asm volatile("nop");asm volatile("nop");}
+	while(delay--) {_NOP;_NOP;}
 };//dont try to optimize, it's calibrated! (gcc -O2)
 
 
@@ -88,13 +101,38 @@ void delay_p(unsigned long delay)//takes 8 cycles, at 16MHz means half of micro 
 
 int main (void)
 {
+	/*
+	DDRC|=1;
+	int i;
+	while(1)
+	{
+		PORTC|=1;
+		for(i=0;i<100;i++)
+			delay_p(10000);
+		PORTC&=~(1);
+		for(i=0;i<100;i++)
+			delay_p(10000);
+		
+		
+		
+	}*/
+	
+	//DHTP|=(1<<2);
+	//PORTB |=2;
 	uart_init();//init UART
-	uart_puts("booted\n");
+	uart_puts("booted...\n");
+	//while(1)NOP;
 	i2c_init();//bring up I2C
+	uart_puts("i2c bus ready...\n");
+	//while(1)NOP;
+	//uart_puts("whaat?!\n");
 	
 	getCV();//download callibration values from BMP085
+	uart_puts("i2c communication success...\n");
 	calc_temp();//initial reading
+	//uart_puts("got temterature\n");
 	calc_pressure();
+	//uart_puts("got pressure\n");
 	
 	set_sleep_mode(SLEEP_MODE_IDLE); //choose most suitable sleep mode - IDLE (still running UART)
 	sleep_enable();//enable sleeping
@@ -102,12 +140,13 @@ int main (void)
 	
 	sei(); //enable interrupt, mainly for UART RX
 
-	uart_puts("starting\n");
+	uart_puts("entering infinite sleep loop...\n");
 	while(1)//sleep it after interrupt again and again
 	{
 		uart_puts("sleeping\n");//debug
 		sleep_enable();
 		sleep_cpu();//MCU is awaken on every interrupt, this will sleep it back again...
+		//_NOP;
 	}	
 	
 	return 0;
@@ -117,15 +156,17 @@ void DHT(uint8_t bit)
 {
 	
 	uint8_t i,j;
-	
+
 	//"say hello"
 	DHT_START(1<<bit);
 	//expect ACK
-	while(PINC&(1<<bit));//wait for pull down
-	while(!(PINC&(1<<bit)));//wait for pull up
-	while(PINC&(1<<bit));//wait for pull down
+	while(DHTI&(1<<bit));//wait for pull down
+	
+	while(!(DHTI&(1<<bit)));//wait for pull up
+	while(DHTI&(1<<bit));//wait for pull down
+	//uart_puts("got ACKs!!!");
 	//init complete
-	//link is onw pulled down by DHT
+	//link is pulled down by DHT
 	
 	//recieve 40(1<<bit)s
 	for(j=0;j<5;j++)
@@ -134,12 +175,12 @@ void DHT(uint8_t bit)
 		for(i=0;i<8;i++)
 		{
 			response[j]=response[j]<<1;//shift left - prepare for new (1<<bit)
-			while(!(PINC&(1<<bit)));//wait for pull up
+			while(!(DHTI&(1<<bit)));//wait for pull up
 			delay_p(50);
-			if(PINC&(1<<bit))//i still pulled up>longer pulse>LOG1
+			if(DHTI&(1<<bit))//i still pulled up>longer pulse>LOG1
 			{
 				response[j]|=1;//set lowest (1<<bit)
-				while(PINC&(1<<bit));//wait for pull down
+				while(DHTI&(1<<bit));//wait for pull down
 			}
 			//else //already pulled down > shorter pulse > LOG0 , zero is hopefuly there (default)
 
@@ -148,7 +189,7 @@ void DHT(uint8_t bit)
 	}
 	//link is down
 	//end event check
-	while(!(PINC&(1<<bit)));//wait for pull up
+	while(!(DHTI&(1<<bit)));//wait for pull up
 	//delay_p(20000);//after some time, it should remain pulled up, still
 	//if(PINC&2){uart_puts("yeah");}
 	//else{uart_puts("noooo");}
@@ -158,19 +199,25 @@ void DHT(uint8_t bit)
 ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will be in idle mode, (maybe sleeping - should be implemented)
 {
 	cli();
-	char reply=UDR;
+	char reply=UDR; 
+	int16_t temp;
+	uint32_t press;
 	if(reply=='Q')//send data as response fo Query
 	{
+		temp=calc_temp();
+		press=calc_pressure();
+		if(temp<-500 || temp>500 || press<90000 || press>150000)//awww somethi'n screwed up, reset is most effective
+		{
+			uart_puts(" wrong value returned, resetting... ");
+			Reset_AVR();
+
+		}
 		uart_puts("!,MULTISNS1,T0,");//some ID
-		uart_puts(itos(calc_temp()));
+		uart_puts(itos(temp));
 		uart_puts(",P0,");
-		uart_puts(itos(calc_pressure()));
+		uart_puts(itos(press));
 		uart_puts(",H0,");
-		DHT(0);
-		uart_puts(itos(response[0]));
-		
-		uart_puts(",H1,");
-		DHT(1);
+		DHT(2);
 		uart_puts(itos(response[0]));
 		uart_puts(",$\n");
 		
@@ -181,6 +228,10 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 		Reset_AVR();
 	}
 	else uart_puts("send Q to get data or R for reset\n");
+	delay(600);//DHT needs some refresh, just for case of too often reading
+	uart_flush();/*something weird, if Q was incomming without pause, interrupt occured one by one. 
+	* No MCU sleep was done. 24th reading from sensors returned wrong values and next would block MCU. 
+	* Solution was total MCU Reset (see above). So, multiple requests (too short pause between them) are ignored for now...*/
 	sei();
 }
 
@@ -207,9 +258,15 @@ uint32_t readNB(uint8_t reg_addr, uint8_t bytes)//reads 'bytes' bytes (up to 4) 
 	if(bytes>4){bytes=4;} //higher vals. shrink to 4
 	bytes--;//now, our values are 0-3, better suits here
 	
-	i2c_start(WA);//we wannay say what to read, that is writing...
+	//uart_puts("reading BMP\n");
+	if(i2c_start(WA))//we wanna say what to read, that is writing...
+	{
+		handleERROR(I2C_start_err);
+		//uart_puts("track point 2\n");
+	}
+	//uart_puts("track point 1\n");
 	i2c_write(reg_addr);//read from given addr
-	i2c_rep_start(RA);//restart i2c comm.
+	i2c_rep_start(RA);//restart i2c comm. for reading now
 	
 	for(i=0;i<bytes;i++)
 	{
@@ -232,12 +289,24 @@ int32_t calc_temp()//measures raw value, converts it into human readable value a
 	int32_t X1,X2;//buffers for translate vals into human readable
 	
 	//proceed temp mesurement 
-	i2c_start(WA);
+	//uart_puts("calc temp\n");
+	if(i2c_start(WA))//we wanna say what to read, that is writing...
+	{
+		handleERROR(I2C_start_err);
+		uart_puts("track point 2\n");
+	}
+	//uart_puts("chat opened\n");
 	err+=i2c_write(0xF4);//we wanna write to control reg.
 	err+=i2c_write(0x2E);//and initiate temp mesurement
 	i2c_stop();
-	
+	//uart_puts("chat closed, WFC...\n");
 	WFC();//wait for EOC
+	/*uint16_t count;
+	for(count=0;!(PINC & 2);count++)asm volatile("NOP");
+	uart_puts("waited: ");
+	uart_puts(itos(count));
+	uart_puts(" cycles\n");*/ //to check of really waiting or passes every time
+	//uart_puts("WFC done\n");
 	
 	//read raw temp value
 	uint16_t UT=(uint16_t)readNB(0xF6,2);
@@ -255,7 +324,8 @@ long calc_pressure()//similar to calc_temp, but works with pressure
 	int32_t X1,X2,X3,p;
 	uint32_t raw_p;
 	
-	i2c_start(WA);
+	i2c_start(WA);//we wanna say what to read, that is writing...
+
 	err+=i2c_write(0xF4);//we wanna write to control reg.
 	err+=i2c_write(0x34+(resolution<<6));//and measure pressure
 	i2c_stop();
@@ -296,8 +366,8 @@ void delay(uint16_t num) //simple delay loop, really stupid but works
 {
 	uint16_t i,j;
 	for (i = 0; i < num; i++)
-		for (j=0;j<100;j++)
-		;
+		for (j=0;j<1000;j++)
+			_NOP;
 }
 
 char *itos(int32_t num)
@@ -339,4 +409,27 @@ char *itos(int32_t num)
 		{str_buffer[index]='\0';}
 	}
 	return str_buffer;
+}
+
+void handleERROR(uint8_t ERROR_code)
+{
+	switch(ERROR_code)
+	{
+		case I2C_start_err:
+		{
+			uart_puts("cant access to BMP085 sensor on I2C bus!");
+			break;
+		}
+		case DHT_err:
+		{
+			uart_puts("communication with DTH sensor failed!");
+			break;
+		}
+		
+		
+	}
+	uart_puts("due to error, performing device reset!");
+	delay(10000);
+	Reset_AVR();
+	//while(1)asm volatile("NOP");//wait forever
 }
