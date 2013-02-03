@@ -33,4 +33,4 @@ load: $(PRG).hex
 	sudo avrdude -p m8 -c usbasp -U flash:w:$< 
 
 loaduino: $(PRG).hex
-	avrdude -p m8 -c arduino -P /dev/ttyUSB1 -b 19200 -U flash:w:$<
+	avrdude -p m8 -c arduino -P /dev/ttyUSB0 -b 19200 -U flash:w:$<

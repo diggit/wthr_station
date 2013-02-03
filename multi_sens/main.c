@@ -48,6 +48,8 @@
 //resolution of BMP085 pressure measurement
 #define resolution 3 //0 fastest - worst, 3 slowest - best
 
+#define AVG_samples	1
+
 char str_buffer[]="XXXXXXXXXXX\0";
 
 //error codes definition
@@ -199,13 +201,28 @@ void DHT(uint8_t bit)
 ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will be in idle mode, (maybe sleeping - should be implemented)
 {
 	cli();
+	uint8_t cnt;
 	char reply=UDR; 
-	int16_t temp;
-	uint32_t press;
+	int16_t temp=0;
+	uint32_t press=0;
 	if(reply=='Q')//send data as response fo Query
 	{
-		temp=calc_temp();
-		press=calc_pressure();
+		//avg
+		for(cnt=0;cnt<AVG_samples;cnt++)
+		{
+			temp+=calc_temp();
+			press+=calc_pressure();
+			delay(100);
+		}
+		temp/=AVG_samples;
+		press/=AVG_samples;
+		/*temp=calc_temp();
+		if(temp==0)//zero? really? ins't it incorrect value?
+		{
+			delay(100);
+			temp=calc_temp();
+		}
+		press=calc_pressure();*/
 		if(temp<-500 || temp>500 || press<90000 || press>150000)//awww somethi'n screwed up, reset is most effective
 		{
 			uart_puts(" wrong value returned, resetting... ");
@@ -357,8 +374,8 @@ long calc_pressure()//similar to calc_temp, but works with pressure
 	X1=(X1 * 3038)>>16;
 	X2=(-7357 * p)>>16;
 	p+=(X1 + X2 + 3791)>>4;//original
-	p+=3400;//my sensor has wrong value at output, offset added to fix it, I hope, It'll work ;-)
-
+	//p+=3400;//my sensor has wrong value at output, offset added to fix it, I hope, It'll work ;-)
+	//haaa mistake, final value must be calculated, it is now done in python script, look onto BMP085 datasheet for more info...
 	return p;
 }
 
