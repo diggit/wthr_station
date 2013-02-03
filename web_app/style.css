@@ -1,0 +1,10 @@
+.charts {margin:0 auto;}
+.charts img {width:900px;}
+body  {
+	width:900px;
+	margin:0 auto;
+	background-color:#C5E5F5;
+	background-image: url(bg.png);
+	background-repeat:repeat-y;
+	background-attachment:fixed;
+	background-position:center;  }
