@@ -6,6 +6,8 @@
 #----------------------------------------
 #	CONFIG
 
+station_altitude=320 #in meters
+
 ENC="utf-8"#for python conversions from chars into bytes, don't change :D
 
 MINUTE_STEP=10#should be divider of 60, 10 min. are good..
@@ -14,9 +16,17 @@ ttyS_device="/dev/ttyUSB0"
 
 BAUD=19200#baudrate, this must be same at sensor module program!!
 
+from os import uname
+
+if uname()[1]=='raspberrypi':
+	PATH="/home/pi/weather_station/web_app/charts/"
+else:
+	PATH="web_app/charts/"
+
 #	END OF CONFIG
 #----------------------------------------
 
+M_lng=[31,28,31,30,31,30,31,31,30,31,30,31]
 
 #parse command line args
 from sys import argv #basic lib, you've got it with python shipped
@@ -31,6 +41,7 @@ debug		- Turns this script into mess generator :D, verbose enough
 dry, dryrun	- No db write will be performed
 -d <device>	- Specify path to serial device, if not, default one is: /dev/ttyUSB0
 if device == 'nodev' no serial IO will be perf.
+nochart		- charts won't be generated (fast run, useful for debug)
 
 For more features,visit github and place feature request""")
 	exit(0)
@@ -48,6 +59,10 @@ if "debug" in argv:
 else:
 	debug=False
 
+if "nochart" in argv:
+	GENchart=False
+else:
+	GENchart=True
 
 if debug:
 	print("DEBUG mode enabled!! warn: high verbosity ;-)")
@@ -62,6 +77,15 @@ elif dry:
 
 
 
+try:
+	from pylab import *
+	if debug:
+		print("matplotlib (pylab) loaded")
+except:
+	print("ERROR, you must install matplotlib first, visit: http://matplotlib.org/\n or clone and build from GIT: https://github.com/matplotlib/matplotlib")
+	exit(1)
+
+
 
 try: 
 	import oursql
@@ -73,16 +97,17 @@ sources ale located on launchpad: https://launchpad.net/oursql
 choose correct version for python3! compile and install...""")
 	exit(1)
 
-try:
-	import serial
-	if debug:
-		print("serial lib loaded")
-except:
-	print("""serial library must be installed,
-should be easy to install from your distro repos
-if not, sources are here: http://pypi.python.org/pypi/pyserial
-BUT they must be converted for python3 before installing!!! or not?""")
-	exit(1)
+if ttyS_device!="nodev":
+	try:
+		import serial
+		if debug:
+			print("serial lib loaded")
+	except:
+		print("""serial library must be installed,
+	should be easy to install from your distro repos
+	if not, sources are here: http://pypi.python.org/pypi/pyserial
+	BUT they must be converted for python3 before installing!!! or not?""")
+		exit(1)
 
 try:
 	from time import strftime
@@ -100,74 +125,26 @@ if(60%MINUTE_STEP):
 	MINUTE_STEP=10
 
 #program flow continues below funcion defs
-
-def gen_page(raw,F,VarName):
-	if debug:
-		print("generating output file")
-	raw.reverse()
-	if debug:
-		print("opening file...")
-	out=open("web_app/"+F,"w")
-	if debug:
-		print("output file name:",out.name)
-		
-	out.write("var "+VarName+" = [")
+def gen_image(raw,Iname,Lcolor):
 	
-	
-	out.write("\n{date:\""+str(raw[0][0])[5:16]+"\", val:"+str(round(raw[0][1],1))+"},")
-	if debug:
-		print(raw[0][0])
-		print("first record, will be complete...")
-	for Nline in range(1,len(raw)):
-		if debug:
-			print(raw[Nline][0])
-		Pdate=str(raw[Nline-1][0])#date from previos record
-		Tdate=str(raw[Nline][0])#this, actual date
-		#print(Pdate[5:7],Pdate[8:10],Pdate[11:13],Pdate[14:16],"prev")
-		#print(Tdate[5:7],Tdate[8:10],Tdate[11:13],Tdate[14:16],"this")
-		
-		Pmonth=int(Pdate[5:7])
-		Pday=int(Pdate[8:10])
-		Phour=int(Pdate[11:13])
-		Pmin=int(Pdate[14:16])
-		
-		Tmonth=int(Tdate[5:7])
-		Tday=int(Tdate[8:10])
-		Thour=int(Tdate[11:13])
-		Tmin=int(Tdate[14:16])
-		
-		if(Pdate==Tdate):
-			if debug:
-				print("^^^ duplicity detected!!! ^^^")
-		else:# different month, different day, hour increase > 1, same hour and minute increase not eq MINUTE_STEP, hours increased (+1) and previous step minutes+MINUTE_STEP isn' equal to 60 (common reason for hour increase==1)        
-			#any of those conditions decides about writing date information
-			if(Tmonth!=Pmonth or Tday!=Pday or (Thour-Phour)>1 or (Thour==Phour and (Tmin-Pmin)!=MINUTE_STEP ) or ((Thour-Phour==1) and (Pmin+MINUTE_STEP!=60))):
-				if debug:
-					print("date will be recorded ---------------^^")
-				out.write("\n{date:\""+Tdate[5:16])
-			else:#date won't be written
-				if debug:
-					print("no date, but will be recorded -------^^")
-				out.write("\n{date:\"")
-			out.write("\", val:"+str(round(raw[Nline][1],1))+"},")
-	out.seek(out.tell()-1)
-	out.write("\n];\n")
-	out.close()
-	if debug:
-		print("file closed!")
-
-def gen_image(raw,Fpath):
-	import matplotlib.pyplot as plt
-	import numpy as np
+	#import matplotlib.pyplot as plt
+	if GENchart:
+		import numpy as np
+		from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 	
 	raw.reverse()
 	
 	Xlist=[]
 	Ylist=[]
 	
+	time_jump=[]
+	
 	if debug:
 		print(raw[0])
 		print("first record, will be complete...")
+	Ylist.append(round(raw[0][1],1))
+	Xlist.append(str(raw[0][0])[5:16])
+	
 	for Nline in range(1,len(raw)):
 		if debug:
 			print(raw[Nline][0])
@@ -189,31 +166,74 @@ def gen_image(raw,Fpath):
 		if(Pdate==Tdate):
 			if debug:
 				print("^^^ duplicity detected!!! ^^^")
-		else:# different month, different day, hour increase > 1, same hour and minute increase not eq MINUTE_STEP, hours increased (+1) and previous step minutes+MINUTE_STEP isn' equal to 60 (common reason for hour increase==1)        
-			#any of those conditions decides about writing date information
-			if(Tmonth!=Pmonth or Tday!=Pday or (Thour-Phour)>1 or (Thour==Phour and (Tmin-Pmin)!=MINUTE_STEP ) or ((Thour-Phour==1) and (Pmin+MINUTE_STEP!=60))):
+		else:#ok, not DUPLA, check that
+			ERR=0
+			#note when some part of date (month,day, hour, min) are same, it os OK, when it is increased by ONE, theme must be checked lower part to
+			# eg DAY changed from 23 to 24, hours must be checked if they were changed from 23 to 0 and so on...
+			if not (Tmonth==Pmonth or ((Tmonth-Pmonth==1 or (Tmonth==1 and Pmonth==12)) and Tday==1 and Pday==M_lng[Pmonth-1])):#NEG when are months OK
+				ERR="MONTH"
+			elif not (Tday==Pday or ((Tday-Pday==1 or (Tday==1 and Pday==M_lng[Pmonth-1])) and Thour==0 and Phour==23)):#NEG when are days OK
+				ERR="DAY"
+			elif not (Thour==Phour or ((Thour-Phour==1 or (Thour==0 and Phour==23)) and Pmin+MINUTE_STEP-60==Tmin )):#NEG when are hours OK (last cond. eg 54+10-60==4)
+				ERR="HOUR"
+			elif not (Pmin+MINUTE_STEP==Tmin or (Pmin==(60-MINUTE_STEP) and Tmin==0)):#NEG when mins are OK
+				ERR="MINUTE"
+			elif (Tmin%MINUTE_STEP):#if minutes are not aligned
+				#ERR="MIN. ALIGN"
 				if debug:
-					print("date will be recorded ---------------^^")
+					print("WARNING - not aligned, but correct time step^^")
+			
+			if ERR:#wrong time steps
+				if debug:
+					print("date will be recorded ---------------^^ ERR DETECTED:"+ERR)
 				Xlist.append(Tdate[5:16])
+				##########################	
+				time_jump.append(len(Xlist)-2)#in chart will be rectangle over this change
+				
+			#normal case whe date would be recorded
+			elif(Tmonth!=Pmonth or Tday!=Pday or (Thour==12 and Tmin==0)):
+				if debug:
+					print("date will be recorded ---------------^^(OK)")
+				Xlist.append(Tdate[5:16])
+				
 			else:#date won't be written
 				if debug:
 					print("no date, but will be recorded -------^^")
 				Xlist.append("")
 			Ylist.append(round(raw[Nline][1],1))
 	
-	
-	x = np.array(range(len(Xlist)))
-	y = np.array(Ylist)
-	my_xticks = Xlist
-	plt.xticks(x, my_xticks,rotation=45)
-	plt.plot(x, y)
-	plt.grid(True)
+	#plotting follows
+	if GENchart:
+		if debug:
+			print("generating plot")
+		figure(figsize=(9,4), dpi=300)
+		x = np.array(range(len(Xlist)))
+		y = np.array(Ylist)
+		my_xticks = Xlist
+		xticks(x, my_xticks,rotation=90)
+		ax = subplot(111)
+		ax.tick_params(labelright=True)#Y labels on both sides (we've got wide chart)
+		ax.yaxis.grid(True)#only Y axis grid
+		plot(x,y,color=Lcolor,zorder=10)
+		subplots_adjust(bottom=0.3,left=0.05,right=1-0.05)
 
-	figure = plt.gcf() # get current figure
-	figure.set_size_inches(9, 3)
-	figure.set_dpi(300)
-	figure.set_alpha(0)#doesnt work----
-	plt.savefig(Fpath, transparent = False,dpi=300)
+		for X in range(len(Xlist)):
+			if Xlist[X][-5:]in ["12:00","00:00"]:#at noon and midnight draw blue line
+				ax.axvline(x=X,linewidth=0.75, linestyle='-', color="blue",alpha=0.75)
+			#elif Xlist[X][-2:]=="00":#eg at 02:00 draw grey line
+			#	ax.axvline(x=X,linewidth=0.75, linestyle='-', color="0.5" ,alpha=0.75)
+			#elif Xlist[X][-5:]!="":#if date is showed and is not case of any above
+			#	ax.axvline(x=X,linewidth=0.75, linestyle='-', color="red",alpha=0.75)
+		
+		for T in time_jump:
+			ax.axvspan(T,T+1,edgecolor="white",facecolor="red",alpha=0.4)
+
+		savefig(PATH+Iname+".png",dpi=300,bottom=20,transparent=True)
+		savefig(PATH+Iname+"-lowres.png",dpi=100,bottom=20,transparent=True)
+	else:
+		if debug:
+			print("leaving, no chart generated")
+
 	
 if ttyS_device!="nodev":
 	try:
@@ -249,7 +269,7 @@ if ttyS_device!="nodev":
 				if debug or dry:
 					print("temperature, key:",RCVD[i],"value=",values[RCVD[i]])
 			elif("P" in RCVD[i]):#if P, pressure value follows
-				values[RCVD[i]]=int(RCVD[i+1])/100 #convert it into num and then divide by 100, because it is in pascals (Pa) and we want hecto pascals (hPa)
+				values[RCVD[i]]=int(RCVD[i+1])/((1-station_altitude/44330)**5.255)/100 #formula from BMP085 datasheet
 				if debug or dry:
 					print("pressure, key:",RCVD[i],"value=",values[RCVD[i]])
 			elif("H" in RCVD[i]):#if H, humdity value follows
@@ -265,41 +285,40 @@ else:
 
 
 
-	try:
-		conn = oursql.connect(user='station', passwd='trollface',db='weather', port=3306)#connect to mysql database
-		if debug:
-			print("connected to db!")
-	except:
-		print("unable to connect to mysql db, check for running daemon, database existence and table existence")
-	curs = conn.cursor()#create cursor
-	if not dry:
-		curs.execute('INSERT INTO `data` (stamp,P0,T0,H0) VALUES (?, ?, ?, ?)',(strftime("%Y-%m-%d %H:%M:00"),values["P0"], values["T0"], values["H0"]))#save values into database
-		if debug:
-			print("data inserted into table")
-	elif debug:
-		print("dry run! no db write done")
-	
+try:
+	conn = oursql.connect(user='station', passwd='trollface',db='weather', port=3306)#connect to mysql database
 	if debug:
-		print("requesting data from db")
-	
-	curs.execute("SELECT stamp,T0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
-	tmsg=curs.fetchall() #recieve this
-	
-	curs.execute("SELECT stamp,P0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
-	pmsg=curs.fetchall() #recieve this
-	
-	curs.execute("SELECT stamp,H0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
-	hmsg=curs.fetchall() #recieve this
-	
+		print("connected to db!")
+except:
+	print("unable to connect to mysql db, check for running daemon, database existence and table existence")
+curs = conn.cursor()#create cursor
+if not dry:
+	curs.execute('INSERT INTO `data` (stamp,P0,T0,H0) VALUES (?, ?, ?, ?)',(strftime("%Y-%m-%d %H:%M:00"),values["P0"], values["T0"], values["H0"]))#save values into database
 	if debug:
-		print("recieved")
-	curs.close()#destruct cursor
-	conn.close()#disconnect from db
-	if debug:
-		print("db connection closed")
+		print("data inserted into table")
+elif debug:
+	print("dry run! no db write done")
+
+if debug:
+	print("requesting data from db")
+
+curs.execute("SELECT stamp,T0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
+tmsg=curs.fetchall() #recieve this
+
+curs.execute("SELECT stamp,P0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
+pmsg=curs.fetchall() #recieve this
+
+curs.execute("SELECT stamp,H0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
+hmsg=curs.fetchall() #recieve this
+
+if debug:
+	print("recieved")
+curs.close()#destruct cursor
+conn.close()#disconnect from db
+if debug:
+	print("db connection closed")
 	
 
-	#gen_page(tmsg,"temp.js","tempVals")#generate file with JS array of those values for web
-	#gen_page(pmsg,"pres.js","presVals")#generate file with JS array of those values for web
-	#gen_page(hmsg,"humi.js","humiVals")#generate file with JS array of those values for web
-	gen_image(tmsg,"temp.png")
+gen_image(tmsg,"temp","green")
+gen_image(pmsg,"pres","red")
+gen_image(hmsg,"humi","blue")
