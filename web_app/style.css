@@ -1,5 +1,29 @@
 .charts {margin:0 auto;}
 .charts img {width:900px;}
+#Atemp {
+	color:green;
+	float:left;
+}
+#Apress {
+	color:red;
+	float:center;
+}
+#Ahumi {
+	color:blue;
+	float:right;
+}
+
+#actual{
+	width:600px;
+	margin:0 auto;
+	text-align:center;
+}
+#stamp{
+	text-align:center;
+}
+
+#actual span{font-size:40px;}
+
 body  {
 	width:900px;
 	margin:0 auto;
