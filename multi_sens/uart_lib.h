@@ -21,5 +21,6 @@
 unsigned char uart_getc( void );
 void uart_putc(char data );
 void uart_puts(char *str);
+void uart_num(int32_t num,uint8_t min);
 void uart_init(void);
 void uart_flush(void);
