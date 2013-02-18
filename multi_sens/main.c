@@ -15,7 +15,11 @@
 //#include "display_ex.c" //functions for more elegant display output
 #include <avr/wdt.h>
 
-#define Reset_AVR() wdt_enable(WDTO_30MS); while(1) {}
+//#define debug
+
+#define _NOP asm volatile("NOP")
+
+#define Reset_AVR() wdt_enable(WDTO_30MS); while(1) {_NOP;}
 
 #define FOSC 16000000UL
 #define BAUD 19200UL
@@ -35,10 +39,10 @@
 #define WA 0b11101110
 
 //waiting for signal that indicates End Of Conversion on pin PB0
-#define WFC() while( !(PINC & 2) )_NOP //Wait For Conversion
+#define WFC() while( !(PINC & 2) )_NOP; //Wait For Conversion
 //DHT start sequence
 
-#define _NOP asm volatile("NOP");
+
 
 #define DHTP PORTB
 #define DHTD DDRB
@@ -48,14 +52,16 @@
 //resolution of BMP085 pressure measurement
 #define resolution 3 //0 fastest - worst, 3 slowest - best
 
-#define AVG_samples	1
+#define pressure_noise 10
+#define temperature_noise 5
+#define matching_min 3
+#define max_tries 5
 
 char str_buffer[]="XXXXXXXXXXX\0";
 
 //error codes definition
 #define I2C_start_err	1
 #define DHT_err			2
-
 
 
 int8_t response[5]={0,0,0,0,0};//init with zeros, buffer for DHT11
@@ -65,9 +71,10 @@ int32_t calc_temp();
 void getCV();
 long calc_pressure();
 uint32_t readNB(uint8_t address, uint8_t bytes);
-char *itos(int32_t num);
+//char *itos(int32_t num);
 void DHT(uint8_t bit);
 void handleERROR(uint8_t ERROR_code);
+
 
 struct { //downloaded calibration values
 	int16_t ac1;
@@ -99,6 +106,13 @@ void delay_p(unsigned long delay)//takes 8 cycles, at 16MHz means half of micro 
 };//dont try to optimize, it's calibrated! (gcc -O2)
 
 
+inline int32_t sabs( int32_t num)
+{
+	if(num<0)
+		return -num;
+	else 
+		return num;
+}
 
 
 int main (void)
@@ -125,12 +139,16 @@ int main (void)
 	uart_puts("booted...\n");
 	//while(1)NOP;
 	i2c_init();//bring up I2C
+#ifdef debug
 	uart_puts("i2c bus ready...\n");
+#endif
 	//while(1)NOP;
 	//uart_puts("whaat?!\n");
 	
 	getCV();//download callibration values from BMP085
+#ifdef debug
 	uart_puts("i2c communication success...\n");
+#endif
 	calc_temp();//initial reading
 	//uart_puts("got temterature\n");
 	calc_pressure();
@@ -142,10 +160,14 @@ int main (void)
 	
 	sei(); //enable interrupt, mainly for UART RX
 
+#ifdef debug
 	uart_puts("entering infinite sleep loop...\n");
+#endif
 	while(1)//sleep it after interrupt again and again
 	{
+#ifdef debug
 		uart_puts("sleeping\n");//debug
+#endif
 		sleep_enable();
 		sleep_cpu();//MCU is awaken on every interrupt, this will sleep it back again...
 		//_NOP;
@@ -166,9 +188,7 @@ void DHT(uint8_t bit)
 	
 	while(!(DHTI&(1<<bit)));//wait for pull up
 	while(DHTI&(1<<bit));//wait for pull down
-	//uart_puts("got ACKs!!!");
-	//init complete
-	//link is pulled down by DHT
+
 	
 	//recieve 40(1<<bit)s
 	for(j=0;j<5;j++)
@@ -192,37 +212,93 @@ void DHT(uint8_t bit)
 	//link is down
 	//end event check
 	while(!(DHTI&(1<<bit)));//wait for pull up
-	//delay_p(20000);//after some time, it should remain pulled up, still
-	//if(PINC&2){uart_puts("yeah");}
-	//else{uart_puts("noooo");}
+
 	
 }
 
 ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will be in idle mode, (maybe sleeping - should be implemented)
 {
 	cli();
-	uint8_t cnt;
+	
+	uint8_t cnt,cnt2;
+	uint8_t OK=0;
 	char reply=UDR; 
 	int16_t temp=0;
+	int16_t Tavg;
+	int16_t Tbuf [matching_min];
+	
 	uint32_t press=0;
+	uint32_t Pavg;
+	uint32_t Pbuf [matching_min];
 	if(reply=='Q')//send data as response fo Query
 	{
-		//avg
-		for(cnt=0;cnt<AVG_samples;cnt++)
+		for(cnt2=0;cnt2<max_tries && !(OK);cnt2++)
 		{
-			temp+=calc_temp();
-			press+=calc_pressure();
-			delay(100);
+#ifdef debug
+			uart_puts("try nuber: ");
+			uart_num(cnt2,1);
+#endif
+			//single try
+			OK=1;
+			Tavg=0;
+			Pavg=0;
+			for(cnt=0;cnt<matching_min;cnt++)//load "matching_min" samples
+			{
+				Tbuf[cnt]=calc_temp();//store measured data
+				Tavg+=Tbuf[cnt];//add to average
+				
+				Pbuf[cnt]=calc_pressure();
+				Pavg+=Pbuf[cnt];
+			}
+			Tavg/=matching_min;//calculate average value (for comparison)
+			Pavg/=matching_min;
+			
+			//check values
+			for(cnt=0;cnt<matching_min;cnt++)
+			{
+				
+				if( sabs(Tavg-Tbuf[cnt])>temperature_noise)
+				{
+					OK=0;
+#ifdef debug					
+					uart_puts("Temperature is out of tollerance: ");
+					uart_num(Tbuf[cnt],1);
+					uart_puts("\n avg: ");
+					uart_num(Tavg,1);
+#endif					
+					break;
+				}
+				
+				if( sabs(Pavg-Pbuf[cnt])>pressure_noise)//if out of tollerance
+				{
+					OK=0;
+#ifdef debug					
+					uart_puts("Presuure is out of tollerance, value: \n");
+					uart_num(Pbuf[cnt],1);
+					uart_putc('\n');
+					uart_num(sabs(Pbuf[cnt]-Pavg),1);
+					uart_putc('\n');
+					uart_num(sabs(Pavg-Pbuf[cnt]),1);
+					uart_puts("\n avg: ");
+					uart_num(Pavg,1);
+					uart_putc('\n');
+#endif					
+					break;
+				}
+			}
 		}
-		temp/=AVG_samples;
-		press/=AVG_samples;
-		/*temp=calc_temp();
-		if(temp==0)//zero? really? ins't it incorrect value?
+		
+		if(OK)
 		{
-			delay(100);
-			temp=calc_temp();
+			temp=Tavg;
+			press=Pavg;
 		}
-		press=calc_pressure();*/
+		else
+		{
+			temp=0;//will cause reset below
+			press=0;
+		}
+		
 		if(temp<-500 || temp>500 || press<90000 || press>150000)//awww somethi'n screwed up, reset is most effective
 		{
 			uart_puts(" wrong value returned, resetting... ");
@@ -230,12 +306,12 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 
 		}
 		uart_puts("!,MULTISNS1,T0,");//some ID
-		uart_puts(itos(temp));
+		uart_num(temp,1);
 		uart_puts(",P0,");
-		uart_puts(itos(press));
+		uart_num(press,1);
 		uart_puts(",H0,");
 		DHT(2);
-		uart_puts(itos(response[0]));
+		uart_num(response[0],1);
 		uart_puts(",$\n");
 		
 	}
@@ -310,20 +386,16 @@ int32_t calc_temp()//measures raw value, converts it into human readable value a
 	if(i2c_start(WA))//we wanna say what to read, that is writing...
 	{
 		handleERROR(I2C_start_err);
+#ifdef debug
 		uart_puts("track point 2\n");
+#endif
 	}
 	//uart_puts("chat opened\n");
 	err+=i2c_write(0xF4);//we wanna write to control reg.
 	err+=i2c_write(0x2E);//and initiate temp mesurement
 	i2c_stop();
-	//uart_puts("chat closed, WFC...\n");
+	
 	WFC();//wait for EOC
-	/*uint16_t count;
-	for(count=0;!(PINC & 2);count++)asm volatile("NOP");
-	uart_puts("waited: ");
-	uart_puts(itos(count));
-	uart_puts(" cycles\n");*/ //to check of really waiting or passes every time
-	//uart_puts("WFC done\n");
 	
 	//read raw temp value
 	uint16_t UT=(uint16_t)readNB(0xF6,2);
@@ -385,47 +457,6 @@ void delay(uint16_t num) //simple delay loop, really stupid but works
 	for (i = 0; i < num; i++)
 		for (j=0;j<1000;j++)
 			_NOP;
-}
-
-char *itos(int32_t num)
-{		
-	uint8_t index=0;
-	
-	if(num<0)
-	{
-		num*=-1;//make it positive
-		str_buffer[index]='-';
-		index++;
-	}
-	/*
-	else
-	{
-		str_buffer[0]='+';//positive means no sign
-		index++;
-	}*/
-	
-	if(num==0)
-	{
-		str_buffer[index]='0';
-		str_buffer[index+1]='\0';
-	}
-	else{
-		uint32_t divider=1000000000;
-		while(divider>0)
-		{
-			if(num>divider)
-			{
-				str_buffer[index]='0'+(num/divider)%10;
-				index++;
-			}
-			
-			divider/=10;//divide divider by 10, for next calcs.
-			
-		}
-		if(index<10)
-		{str_buffer[index]='\0';}
-	}
-	return str_buffer;
 }
 
 void handleERROR(uint8_t ERROR_code)
