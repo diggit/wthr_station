@@ -1,11 +1,12 @@
 #include "uart_lib.h"
 
+#define __NOP asm volatile("NOP")
 
 // get char
 unsigned char uart_getc( void )
 {
 	while ( !(UCSRA & (1<<RXC)) )
-		;
+		__NOP;
 	return UDR;
 }
 
@@ -13,7 +14,7 @@ unsigned char uart_getc( void )
 void uart_putc(char data)
 {
 	while ( !( UCSRA & (1<<UDRE)) )
-		;
+		__NOP;
 	UDR = data;
 }
 
@@ -24,6 +25,36 @@ void uart_puts(char *str)//accepts address on array beginning
 	{
 		uart_putc(*str);//send character which is located on address called str here, *str gives valu (char) stored there
 	}
+}
+
+
+void uart_num(int32_t num,uint8_t min)
+{
+	if(num<0)//sign
+	{
+		uart_putc('-');
+		num=-num;
+	}
+	if(num>1000000000 || min>10)
+		uart_putc('0'+num/1000000000);
+	if(num>100000000 || min>9)
+		uart_putc('0'+num/100000000%10);
+	if(num>10000000 || min>8)
+		uart_putc('0'+num/10000000%10);
+	if(num>1000000 || min>7)
+		uart_putc('0'+num/1000000%10);
+	if(num>100000 || min>6)
+		uart_putc('0'+num/100000%10);
+	if(num>10000 || min>5)
+		uart_putc('0'+num/10000%10);
+	if(num>1000 || min>3)
+		uart_putc('0'+num/1000%10);
+	if(num>100 || min>2)
+		uart_putc('0'+num/100%10);
+	if(num>10 || min>1)
+		uart_putc('0'+num/10%10);
+	uart_putc('0'+num%10);
+	//done	
 }
 
 
