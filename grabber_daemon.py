@@ -19,9 +19,9 @@ BAUD=19200#baudrate, this must be same at sensor module program!!
 from os import uname
 
 if uname()[1]=='raspberrypi':
-	PATH="/home/pi/weather_station/web_app/charts/"
+	PATH="/home/pi/weather_station/web_app/"
 else:
-	PATH="web_app/charts/"
+	PATH="web_app/"
 
 #	END OF CONFIG
 #----------------------------------------
@@ -76,14 +76,16 @@ elif dry:
 	print("Dry run active, no db write will be done")
 
 
-
-try:
-	from pylab import *
+if GENchart:
 	if debug:
-		print("matplotlib (pylab) loaded")
-except:
-	print("ERROR, you must install matplotlib first, visit: http://matplotlib.org/\n or clone and build from GIT: https://github.com/matplotlib/matplotlib")
-	exit(1)
+		print("loading matplotlib")
+	try:
+		from pylab import *
+		if debug:
+			print("loaded")
+	except:
+		print("ERROR, you must install matplotlib first, visit: http://matplotlib.org/\n or clone and build from GIT: https://github.com/matplotlib/matplotlib")
+		exit(1)
 
 
 
@@ -123,6 +125,15 @@ maybe your distro provides it in sep. package""")
 
 if(60%MINUTE_STEP):
 	MINUTE_STEP=10
+
+def gen_actualjs(T,P,H,stamp):
+	js=open(PATH+"actual.js","w")
+	js.write("//dynamicaly generated, do not edit\n")
+	js.write("var last_temp= %0.2f;\n" % T)
+	js.write("var last_press= %0.2f;\n" % P)
+	js.write("var last_humi= %i;\n" % H)
+	js.write("var stamp=\""+str(stamp)+"\";\n")
+	js.close()
 
 #program flow continues below funcion defs
 def gen_image(raw,Iname,Lcolor):
@@ -214,8 +225,10 @@ def gen_image(raw,Iname,Lcolor):
 		ax = subplot(111)
 		ax.tick_params(labelright=True)#Y labels on both sides (we've got wide chart)
 		ax.yaxis.grid(True)#only Y axis grid
+		y_formatter = matplotlib.ticker.ScalarFormatter(useOffset=False)
+		ax.yaxis.set_major_formatter(y_formatter)
 		plot(x,y,color=Lcolor,zorder=10)
-		subplots_adjust(bottom=0.3,left=0.05,right=1-0.05)
+		subplots_adjust(bottom=0.3,left=0.07,right=1-0.07)
 
 		for X in range(len(Xlist)):
 			if Xlist[X][-5:]in ["12:00","00:00"]:#at noon and midnight draw blue line
@@ -228,8 +241,8 @@ def gen_image(raw,Iname,Lcolor):
 		for T in time_jump:
 			ax.axvspan(T,T+1,edgecolor="white",facecolor="red",alpha=0.4)
 
-		savefig(PATH+Iname+".png",dpi=300,bottom=20,transparent=True)
-		savefig(PATH+Iname+"-lowres.png",dpi=100,bottom=20,transparent=True)
+		savefig(PATH+"charts/"+Iname+".png",dpi=300,bottom=20,transparent=True)
+		savefig(PATH+"charts/"+Iname+"-lowres.png",dpi=100,bottom=20,transparent=True)
 	else:
 		if debug:
 			print("leaving, no chart generated")
@@ -319,6 +332,10 @@ if debug:
 	print("db connection closed")
 	
 
+gen_actualjs(tmsg[-1][1],pmsg[-1][1],hmsg[-1][1],str(tmsg[0][0]))
+
 gen_image(tmsg,"temp","green")
 gen_image(pmsg,"pres","red")
 gen_image(hmsg,"humi","blue")
+
+
