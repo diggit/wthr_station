@@ -8,35 +8,44 @@
 
 	</head>
 	<body>
-		<div id="actual">
-			<span id="Atemp">
-				<script>document.write(last_temp+" °C");</script>
-			</span>
-			<span id="Apress">
-				<script>document.write(last_press+" hPa");</script>
-			</span>
-			<span id="Ahumi">
-				<script>document.write(last_humi+" %");</script>
-			</span>
-			<div id="stamp">
-				<script>document.write(stamp);</script>
+		<div id="header">
+			<div id="actual">
+				<span id="Atemp">
+					<script>document.write(last_temp.toFixed(1)+" °C");</script>
+				</span>
+				<span id="Apress">
+					<script>document.write(last_press+" hPa");</script>
+				</span>
+				<span id="Ahumi">
+					<script>document.write(last_humi+" %");</script>
+				</span>
+				<div id="stamp">
+					<script>document.write(stamp);</script>
+				</div>
 			</div>
 		</div>
-		<div class="charts">
-			<div id="temperature">
-				<img src="charts/temp-lowres.png" alt="tempterature history">
+		<div id="menu">
+			<a href="/index.html">Hlavní strana</a><a href="/about.html">O projektu</a><a href="/me.html">Kontakt</a><a></a>
+		</div>
+		<div id="content">
+			<div class="charts">
+				<div id="temperature">
+					<img src="charts/temp-lowres.png" alt="tempterature history">
+				</div>
+				<div id="pressure">
+					<img src="charts/pres-lowres.png" alt="atmospheric pressure history">
+				</div>
+				<div id="humidity">
+					<img src="charts/humi-lowres.png" alt="relative humidity history">
+				</div>
 			</div>
-			<div id="pressure">
-				<img src="charts/pres-lowres.png" alt="atmospheric pressure history">
-			</div>
-			<div id="humidity">
-				<img src="charts/humi-lowres.png" alt="relative humidity history">
+			<div id="kecy">
+				<p>nejaky hustarny!!</p>
 			</div>
 		</div>
-		<div id="kecy">
-			<p>nejaky hustarny!!</p>
+		<div id="footer">
+			By Patrik Bachan, <a href="/me.html">CONTACT</a>, <a href="https://github.com/diggit/wthr_station">opensource project</a>
 		</div>
-
 	</body>
 </html>
 
