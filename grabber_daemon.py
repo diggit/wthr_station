@@ -28,6 +28,10 @@ else:
 
 M_lng=[31,28,31,30,31,30,31,31,30,31,30,31]
 
+
+if(60%MINUTE_STEP):
+	MINUTE_STEP=10
+
 #parse command line args
 from sys import argv #basic lib, you've got it with python shipped
 
@@ -42,6 +46,7 @@ dry, dryrun	- No db write will be performed
 -d <device>	- Specify path to serial device, if not, default one is: /dev/ttyUSB0
 if device == 'nodev' no serial IO will be perf.
 nochart		- charts won't be generated (fast run, useful for debug)
+jsonly		- downloads values from station, used only in js file, no chart gererated or db access made
 
 For more features,visit github and place feature request""")
 	exit(0)
@@ -64,40 +69,33 @@ if "nochart" in argv:
 else:
 	GENchart=True
 
+if "jsonly" in argv:
+	jsonly=True
+	GENchart=False
+else:
+	jsonly=False
+
 if debug:
 	print("DEBUG mode enabled!! warn: high verbosity ;-)")
-	if dry:
-		print("Dry run active, no db write will be done")
 	print("ttyS (serial) device:",ttyS_device)
 	print("baud rate:",BAUD)
 	print("minute step:",MINUTE_STEP)
 	print("here we go")
-elif dry:
+
+elif dry and not jsonly:
 	print("Dry run active, no db write will be done")
 
 
-if GENchart:
-	if debug:
-		print("loading matplotlib")
-	try:
-		from pylab import *
+if not jsonly:
+	try: 
+		import oursql
 		if debug:
-			print("loaded")
+			print("oursql lib loaded")
 	except:
-		print("ERROR, you must install matplotlib first, visit: http://matplotlib.org/\n or clone and build from GIT: https://github.com/matplotlib/matplotlib")
+		print("""oursql library must be installed,
+	sources ale located on launchpad: https://launchpad.net/oursql
+	choose correct version for python3! compile and install...""")
 		exit(1)
-
-
-
-try: 
-	import oursql
-	if debug:
-		print("oursql lib loaded")
-except:
-	print("""oursql library must be installed,
-sources ale located on launchpad: https://launchpad.net/oursql
-choose correct version for python3! compile and install...""")
-	exit(1)
 
 if ttyS_device!="nodev":
 	try:
@@ -123,29 +121,27 @@ maybe your distro provides it in sep. package""")
 	exit(1)
 
 
-if(60%MINUTE_STEP):
-	MINUTE_STEP=10
 
 def gen_actualjs(T,P,H,stamp):
+	if debug:
+		print("writing JS file")
 	js=open(PATH+"actual.js","w")
 	js.write("//dynamicaly generated, do not edit\n")
 	js.write("var last_temp= %0.2f;\n" % T)
-	js.write("var last_press= %0.2f;\n" % P)
+	js.write("var last_press= %i;\n" % P)
 	js.write("var last_humi= %i;\n" % H)
 	js.write("var stamp=\""+str(stamp)+"\";\n")
 	js.close()
+	if debug:
+		print("write done!")
 
 #program flow continues below funcion defs
 def gen_image(raw,Iname,Lcolor):
 	
-	#import matplotlib.pyplot as plt
-	if GENchart:
-		import numpy as np
-		from matplotlib.ticker import MultipleLocator, FormatStrFormatter
-	
 	raw.reverse()
 	
 	Xlist=[]
+	allXlist=[]
 	Ylist=[]
 	
 	time_jump=[]
@@ -155,6 +151,7 @@ def gen_image(raw,Iname,Lcolor):
 		print("first record, will be complete...")
 	Ylist.append(round(raw[0][1],1))
 	Xlist.append(str(raw[0][0])[5:16])
+	allXlist.append(Xlist[0])
 	
 	for Nline in range(1,len(raw)):
 		if debug:
@@ -212,6 +209,7 @@ def gen_image(raw,Iname,Lcolor):
 					print("no date, but will be recorded -------^^")
 				Xlist.append("")
 			Ylist.append(round(raw[Nline][1],1))
+			allXlist.append(Tdate[5:16])
 	
 	#plotting follows
 	if GENchart:
@@ -229,14 +227,15 @@ def gen_image(raw,Iname,Lcolor):
 		ax.yaxis.set_major_formatter(y_formatter)
 		plot(x,y,color=Lcolor,zorder=10)
 		subplots_adjust(bottom=0.3,left=0.07,right=1-0.07)
-
+		
+		
+		#print("Lng:",len(Xlist),len(allXlist))
 		for X in range(len(Xlist)):
-			if Xlist[X][-5:]in ["12:00","00:00"]:#at noon and midnight draw blue line
+			if (allXlist[X][-5:]in ["12:00","00:00"]):#at noon and midnight draw blue line
 				ax.axvline(x=X,linewidth=0.75, linestyle='-', color="blue",alpha=0.75)
-			#elif Xlist[X][-2:]=="00":#eg at 02:00 draw grey line
-			#	ax.axvline(x=X,linewidth=0.75, linestyle='-', color="0.5" ,alpha=0.75)
-			#elif Xlist[X][-5:]!="":#if date is showed and is not case of any above
-			#	ax.axvline(x=X,linewidth=0.75, linestyle='-', color="red",alpha=0.75)
+			elif (allXlist[X][-2:] == "00"):
+				ax.axvline(x=X,linewidth=0.75, linestyle='-', color="grey",alpha=0.5)
+			#print(allXlist[X])
 		
 		for T in time_jump:
 			ax.axvspan(T,T+1,edgecolor="white",facecolor="red",alpha=0.4)
@@ -247,8 +246,7 @@ def gen_image(raw,Iname,Lcolor):
 		if debug:
 			print("leaving, no chart generated")
 
-	
-if ttyS_device!="nodev":
+def query_data():
 	try:
 		com=serial.Serial(ttyS_device,BAUD)#open communication
 		if debug:
@@ -267,8 +265,9 @@ if ttyS_device!="nodev":
 	com.close()#close our comunication
 	if debug:
 		print("serial device closed")
+	return RCVD
 
-
+def decode_packet(RCVD):
 	values={}#dictionary, key is property
 
 	if debug:
@@ -293,49 +292,93 @@ if ttyS_device!="nodev":
 				values[RCVD[i]]=int(RCVD[i+1])#somethink unknown, just convert and save
 		if debug:
 			print(values)#print debug message
-else:
-	print("No serial IO will be performed")
-
-
-
-try:
-	conn = oursql.connect(user='station', passwd='trollface',db='weather', port=3306)#connect to mysql database
-	if debug:
-		print("connected to db!")
-except:
-	print("unable to connect to mysql db, check for running daemon, database existence and table existence")
-curs = conn.cursor()#create cursor
-if not dry:
-	curs.execute('INSERT INTO `data` (stamp,P0,T0,H0) VALUES (?, ?, ?, ?)',(strftime("%Y-%m-%d %H:%M:00"),values["P0"], values["T0"], values["H0"]))#save values into database
-	if debug:
-		print("data inserted into table")
-elif debug:
-	print("dry run! no db write done")
-
-if debug:
-	print("requesting data from db")
-
-curs.execute("SELECT stamp,T0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
-tmsg=curs.fetchall() #recieve this
-
-curs.execute("SELECT stamp,P0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
-pmsg=curs.fetchall() #recieve this
-
-curs.execute("SELECT stamp,H0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
-hmsg=curs.fetchall() #recieve this
-
-if debug:
-	print("recieved")
-curs.close()#destruct cursor
-conn.close()#disconnect from db
-if debug:
-	print("db connection closed")
+	return values#dictionary of measured values
 	
 
-gen_actualjs(tmsg[-1][1],pmsg[-1][1],hmsg[-1][1],str(tmsg[0][0]))
+def db_access(values):
+	try:
+		conn = oursql.connect(user='station', passwd='trollface',db='weather', port=3306)#connect to mysql database
+		if debug:
+			print("connected to db!")
+	except:
+		print("unable to connect to mysql db, check for running daemon, database existence and table existence")
+		exit(1)
+	curs = conn.cursor()#create cursor
+	if not dry:
+		curs.execute('INSERT INTO `data` (stamp,P0,T0,H0) VALUES (?, ?, ?, ?)',(strftime("%Y-%m-%d %H:%M:00"),values["P0"], values["T0"], values["H0"]))#save values into database
+		if debug:
+			print("data inserted into table")
+	elif debug:
+		print("dry run! no db write done")
 
-gen_image(tmsg,"temp","green")
-gen_image(pmsg,"pres","red")
-gen_image(hmsg,"humi","blue")
+	if debug:
+		print("requesting data from db")
 
+	curs.execute("SELECT stamp,T0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
+	tmsg=curs.fetchall() #recieve this
+
+	curs.execute("SELECT stamp,P0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of P0 (pressure)
+	pmsg=curs.fetchall() #recieve this
+
+	curs.execute("SELECT stamp,H0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of h0 (humidity)
+	hmsg=curs.fetchall() #recieve this
+
+	if debug:
+		print("recieved")
+	curs.close()#destruct cursor
+	conn.close()#disconnect from db
+	if debug:
+		print("db connection closed")
+	return [tmsg,pmsg,hmsg]
+
+
+if ttyS_device!="nodev":
+	packet=query_data()
+	data=decode_packet(packet)
+	
+else:
+	print("No serial IO will be performed")
+	data={}
+
+
+if not jsonly:
+	dbout=db_access(data)
+
+	tmsg=dbout[0]
+	pmsg=dbout[1]	
+	hmsg=dbout[2]
+
+	stamp=str(tmsg[0][0])
+
+	#output generation
+	if not dry:
+		gen_actualjs(tmsg[0][1],pmsg[0][1],hmsg[0][1],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16]) # DAY.MONTH. YEAR HOUR:MIN
+	elif debug:
+		print("no js file write!")
+	
+	if GENchart:
+		if debug:
+			print("loading matplotlib")
+		try:
+			from pylab import *
+			import numpy as np
+			from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+			if debug:
+				print("loaded")
+		except:
+			print("ERROR, you must install matplotlib first, visit: http://matplotlib.org/\n or clone and build from GIT: https://github.com/matplotlib/matplotlib")
+			exit(1)
+
+		gen_image(tmsg,"temp","green")
+		gen_image(pmsg,"pres","red")
+		gen_image(hmsg,"humi","blue")
+
+elif(not dry):
+	if not data:
+		print("no data recieved, was right device chosen? (-d nodev ???)")
+		exit(1)
+	stamp=strftime("%d.%m. %Y %H:%M")
+	gen_actualjs(data["T0"],data["P0"],data["H0"],stamp) # DAY.MONTH. YEAR HOUR:MIN
+else:
+	print("no write done, js file remains untouched (dry ???)")
 
