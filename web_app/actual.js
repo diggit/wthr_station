@@ -1,5 +1,5 @@
 //dynamicaly generated, do not edit
-var last_temp= 20.30;
-var last_press= 1007.16;
-var last_humi= 65;
-var stamp="2013-03-07 19:49:00";
+var last_temp= 33.00;
+var last_press= 1000;
+var last_humi= 10;
+var stamp="07.03. 2013 19:49";
