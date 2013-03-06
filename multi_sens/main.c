@@ -396,6 +396,7 @@ int32_t calc_temp()//measures raw value, converts it into human readable value a
 	i2c_stop();
 	
 	WFC();//wait for EOC
+	delay(50);//maybe can prevent of reading random O temp.
 	
 	//read raw temp value
 	uint16_t UT=(uint16_t)readNB(0xF6,2);
