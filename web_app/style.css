@@ -2,15 +2,29 @@
 .charts img {width:900px;}
 #Atemp {
 	color:green;
-	float:left;
 }
 #Apress {
 	color:red;
-	float:center;
 }
 #Ahumi {
 	color:blue;
-	float:right;
+}
+
+#header{
+	width:900px;
+	height:130px;
+	margin:0 auto;
+	padding-top:20px;
+	background-color:#FFFFFF;
+}
+
+#header span{
+	padding:5px;
+	margin:5px;
+	background-color:#ccc;
+	border-style:solid;
+	border-width:1px;
+	border-radius:10px;
 }
 
 #actual{
@@ -20,15 +34,71 @@
 }
 #stamp{
 	text-align:center;
+	width:900;
+	padding:10px 5px 10px 5px;
+	margin:15px 43px 0px 43px;
+	background-color:#ccc;
+	border-style:solid;
+	border-width:1px;
+	border-radius:10px;
+	font-weight:bold;
+	color:#222;
+	
 }
 
 #actual span{font-size:40px;}
 
-body  {
+#content{
 	width:900px;
 	margin:0 auto;
-	background-color:#C5E5F5;
-	background-image: url(bg.png);
+	padding-top:20px;
+	background-color:#FFFFFF;
+}
+
+#footer{
+	background-color:#777;
+	text-align:center;
+	margin:0px;
+	padding:10px;
+}
+
+#menu A{
+	/*background-color:#929A9D;*/
+	font-weight:bold;
+	padding:10px 10px;
+	color:#222;
+	margin:0px;
+	border-style:solid;
+	border-color:#FFF;
+	border-width:0 0px 0 5px;
+	text-align:center;
+	
+}
+#menu{
+	/*height:100px;*/
+	text-align:center;
+	padding:10px 0 10px 0;
+	background-color:#929A9D;
+}
+
+body  {
+	margin:0px;
+	background-color:#929A9D;
 	background-repeat:repeat-y;
 	background-attachment:fixed;
-	background-position:center;  }
+	background-position:center;
+}
+A:link{
+	color:#222;
+}
+
+A:visited{
+	text-decoration:none;
+	color:#ccc;
+}
+
+A:-webkit-any-link{text-decoration:none;} /*chrome specific*/
+
+A:hover{
+	text-decoration:none;
+	color:#f93;
