@@ -1,0 +1,73 @@
+Cmp-Mod V01 Created by PcbNew date = Thu 18 Apr 2013 10:11:23 PM CEST
+
+BeginCmp
+TimeStamp = /5165A6AE;
+Reference = C1;
+ValeurCmp = C;
+IdModule  = SM1206;
+EndCmp
+
+BeginCmp
+TimeStamp = /5165A6BB;
+Reference = C2;
+ValeurCmp = C;
+IdModule  = SM1206;
+EndCmp
+
+BeginCmp
+TimeStamp = /5165A6C1;
+Reference = C3;
+ValeurCmp = C;
+IdModule  = SM1206;
+EndCmp
+
+BeginCmp
+TimeStamp = /5165A807;
+Reference = C4;
+ValeurCmp = CP1;
+IdModule  = SM1812L;
+EndCmp
+
+BeginCmp
+TimeStamp = /5165A3AC;
+Reference = P1;
+ValeurCmp = CONN_4;
+IdModule  = PIN_ARRAY_4x1;
+EndCmp
+
+BeginCmp
+TimeStamp = /5165A5DE;
+Reference = R1;
+ValeurCmp = R;
+IdModule  = SM1206;
+EndCmp
+
+BeginCmp
+TimeStamp = /5165A5EB;
+Reference = R2;
+ValeurCmp = R;
+IdModule  = SM1206;
+EndCmp
+
+BeginCmp
+TimeStamp = /516BA52D;
+Reference = U1;
+ValeurCmp = ADT7410;
+IdModule  = SO8E;
+EndCmp
+
+BeginCmp
+TimeStamp = /516BA526;
+Reference = U2;
+ValeurCmp = ADT7410;
+IdModule  = SO8E;
+EndCmp
+
+BeginCmp
+TimeStamp = /516BA40B;
+Reference = U3;
+ValeurCmp = ADT7410;
+IdModule  = SO8E;
+EndCmp
+
+EndListe
