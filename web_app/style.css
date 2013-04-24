@@ -32,6 +32,9 @@
 	margin:0 auto;
 	text-align:center;
 }
+
+#actual span{font-size:40px;}
+
 #stamp{
 	text-align:center;
 	width:900;
@@ -46,13 +49,17 @@
 	
 }
 
-#actual span{font-size:40px;}
-
 #content{
 	width:900px;
 	margin:0 auto;
 	padding-top:20px;
 	background-color:#FFFFFF;
+	text-align:center;
+}
+
+#content a{
+	font-size:1.5em;
+	
 }
 
 #footer{
@@ -81,12 +88,14 @@
 	background-color:#929A9D;
 }
 
+#note{
+	padding:0 40px 20px 40px;
+	text-align:left;
+}
+
 body  {
 	margin:0px;
 	background-color:#929A9D;
-	background-repeat:repeat-y;
-	background-attachment:fixed;
-	background-position:center;
 }
 A:link{
 	color:#222;
