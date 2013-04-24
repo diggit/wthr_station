@@ -75,6 +75,15 @@ uint32_t readNB(uint8_t address, uint8_t bytes);
 void DHT(uint8_t bit);
 void handleERROR(uint8_t ERROR_code);
 
+void delay_p(unsigned long delay)//takes 8 cycles, at 16MHz means half of micro second (freq*time)/repeated
+{
+	delay=delay<<1;//multiply by 2 to get 1uS delay
+	while(delay--) {_NOP;_NOP;}
+};//dont try to optimize, it's calibrated! (gcc -O2)
+
+
+//library for operations with temperature board
+#include "temp.c"
 
 struct { //downloaded calibration values
 	int16_t ac1;
@@ -97,13 +106,6 @@ struct{//calibration values calculated
 	uint32_t b4;
 	int32_t b3;
 } CVC;
-
-
-void delay_p(unsigned long delay)//takes 8 cycles, at 16MHz means half of micro second (freq*time)/repeated
-{
-	delay=delay<<1;//multiply by 2 to get 1uS delay
-	while(delay--) {_NOP;_NOP;}
-};//dont try to optimize, it's calibrated! (gcc -O2)
 
 
 inline int32_t sabs( int32_t num)
@@ -395,8 +397,9 @@ int32_t calc_temp()//measures raw value, converts it into human readable value a
 	err+=i2c_write(0x2E);//and initiate temp mesurement
 	i2c_stop();
 	
+	delay(20);
 	WFC();//wait for EOC
-	delay(50);//maybe can prevent of reading random O temp.
+	delay(80);//maybe can prevent of reading random O temp.
 	
 	//read raw temp value
 	uint16_t UT=(uint16_t)readNB(0xF6,2);
