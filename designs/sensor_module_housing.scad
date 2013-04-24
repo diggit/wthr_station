@@ -1,6 +1,6 @@
-//$fn=70;
-$fa=0.5;
-$fs=0.1;
+$fn=70;
+//$fa=0.5;
+//$fs=0.1;
 T_dia_in=54;
 T_thickness=1;
 T_height=30;
@@ -17,7 +17,7 @@ C_count=6;
 C_dia_in=1.7;
 C_thickness=2;
 
-render=0; //1 bottom, 2 middle (1 floor), 3 top, 4 rod mount, 0 all
+render=5; //1 bottom, 2 middle (1 floor), 3 top, 4 rod mount,5 top W/ window, 0 all
 
 E_dia=51.4;
 E_height=8.5;
@@ -45,6 +45,30 @@ else if(render==4)
 {
 	rod_mount(10);
 }
+else if(render==5)
+{
+	rotate(a=[180,0,0]){
+	rings(1,0);
+	difference(){
+		top_plate(R_height-1.5);
+		translate([-5,-5,10])cube([10,10,10]);
+		//translate([-10,-10,R_height-0.6])cube([20,20,1]);
+		}
+	translate([9,-5,R_height-3-1.5])
+		difference(){
+			cylinder(r=3,h=3);
+			cylinder(r=1.3,h=3);
+		}
+	translate([9,5,R_height-3-1.5])
+		difference(){
+			cylinder(r=3,h=3);
+			cylinder(r=1.3,h=3);
+		}
+	
+		
+	}
+	
+}
 else {
 	rings(R_count,T_height-R_overlap);
 	top_plate(T_height+R_count*(R_height-R_overlap)-1,0);
@@ -58,7 +82,7 @@ else {
 module base(){
 	difference(){
 		union(){
-			difference(){//main tube
+			difference(){//main tubeBH1750FVI
 					cylinder(r=T_dia_in/2+T_thickness,h=T_height);
 					cylinder(r=T_dia_in/2,h=T_height);
 			}
@@ -66,7 +90,7 @@ module base(){
 			difference()
 			{
 				for(i=[0:1:C_count-1]){//columns
-					rotate(a=[0,0,i*(360/C_count)]){
+					rotate(a=[0,0,i*(360/BH1750FVIC_count)]){
 						translate(v=[T_dia_in/2,0,10]){
 								cylinder(r=C_dia_in/2+C_thickness,h=T_height-10);
 						}
