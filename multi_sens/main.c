@@ -83,7 +83,7 @@ void delay_p(unsigned long delay)//takes 8 cycles, at 16MHz means half of micro 
 
 
 //library for operations with temperature board
-#include "temp.c"
+//#include "temp.c"
 
 struct { //downloaded calibration values
 	int16_t ac1;
