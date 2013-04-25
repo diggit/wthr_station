@@ -17,15 +17,15 @@
 
 //#define debug
 
-#define _NOP asm volatile("NOP")
+#define _NOP asm volatile("NOP")//we have optimizations, empty while(1) loops are not ok, _NOP fixes this
 
-#define Reset_AVR() wdt_enable(WDTO_30MS); while(1) {_NOP;}
+#define Reset_AVR() wdt_enable(WDTO_30MS); while(1) {_NOP;}//little workaround, atmega has no software reset
 
-#define FOSC 16000000UL
-#define BAUD 19200UL
+#define FOSC 16000000UL //MCU crystal freq.
+#define BAUD 19200UL //speed of UART, for short distances could be increased, bud don't forget to change value in grabber script on server...
 #define UA_RX_INT_EN 1 //enable UART recieve INT
 
-#include "uart_lib.c"
+#include "uart_lib.c"//useful UART functions, init, send, receive and so on
 
 //basic macros for simple bit writing
 #define bit_set(p,m) ((p) |= (m))
@@ -35,8 +35,8 @@
 #include "i2cmaster.c"
 
 //addresses of i2c sensor
-#define RA 0b11101111
-#define WA 0b11101110
+#define BMP_ADDR 0b11101110
+#define READ	 1 //lowest bit in addr selects READ/write
 
 //waiting for signal that indicates End Of Conversion on pin PB0
 #define WFC() while( !(PINC & 2) )_NOP; //Wait For Conversion
@@ -44,18 +44,18 @@
 
 
 
-#define DHTP PORTB
-#define DHTD DDRB
-#define DHTI PINB
+#define DHTP PORTB //PORT where DHT11 data pin is attached
+#define DHTD DDRB  //...it's configuration register (I/O selection)
+#define DHTI PINB  //register where to get actual status of input
 #define DHT_START(b) bit_set(DHTD,b); delay_p(1000*30); bit_clr(DHTD,b); delay_p(4*10)//; bit_clr(DHTD,b)//; bit_clr(DHTP,b) //shouldn't be DHTP (pull-up) bit 2 cleared too?
 
 //resolution of BMP085 pressure measurement
 #define resolution 3 //0 fastest - worst, 3 slowest - best
 
-#define pressure_noise 10
-#define temperature_noise 5
-#define matching_min 3
-#define max_tries 5
+#define pressure_noise 10 //pressure treshold
+#define temperature_noise 5 //temperature treshold
+#define matching_min 3 //samples count which value shouldn't be too far from it's avg. value eg AVG:200 val1:201 val2:198 val3:203 -worst distance is 3 (=|200-203|), values above are tresholds 
+#define max_tries 5 //if measured values were too far from their AVG value, try it until OK or max_tries is reached
 
 char str_buffer[]="XXXXXXXXXXX\0";
 
@@ -83,7 +83,7 @@ void delay_p(unsigned long delay)//takes 8 cycles, at 16MHz means half of micro 
 
 
 //library for operations with temperature board
-//#include "temp.c"
+#include "temp.c"
 
 struct { //downloaded calibration values
 	int16_t ac1;
@@ -354,14 +354,17 @@ uint32_t readNB(uint8_t reg_addr, uint8_t bytes)//reads 'bytes' bytes (up to 4) 
 	bytes--;//now, our values are 0-3, better suits here
 	
 	//uart_puts("reading BMP\n");
-	if(i2c_start(WA))//we wanna say what to read, that is writing...
+	if(i2c_start(BMP_ADDR))//we wanna say what to read, that is writing...
 	{
 		handleERROR(I2C_start_err);
 		//uart_puts("track point 2\n");
 	}
 	//uart_puts("track point 1\n");
 	i2c_write(reg_addr);//read from given addr
-	i2c_rep_start(RA);//restart i2c comm. for reading now
+	if(i2c_rep_start(BMP_ADDR|1))//restart i2c comm. for reading now
+	{
+		handleERROR(I2C_start_err);
+	}
 	
 	for(i=0;i<bytes;i++)
 	{
@@ -385,7 +388,7 @@ int32_t calc_temp()//measures raw value, converts it into human readable value a
 	
 	//proceed temp mesurement 
 	//uart_puts("calc temp\n");
-	if(i2c_start(WA))//we wanna say what to read, that is writing...
+	if(i2c_start(BMP_ADDR))//we wanna say what to read, that is writing...
 	{
 		handleERROR(I2C_start_err);
 #ifdef debug
@@ -417,8 +420,10 @@ long calc_pressure()//similar to calc_temp, but works with pressure
 	int32_t X1,X2,X3,p;
 	uint32_t raw_p;
 	
-	i2c_start(WA);//we wanna say what to read, that is writing...
-
+	if(i2c_start(BMP_ADDR))//we wanna say what to read, that is writing...
+	{
+		handleERROR(I2C_start_err);
+	}
 	err+=i2c_write(0xF4);//we wanna write to control reg.
 	err+=i2c_write(0x34+(resolution<<6));//and measure pressure
 	i2c_stop();
@@ -463,13 +468,14 @@ void delay(uint16_t num) //simple delay loop, really stupid but works
 			_NOP;
 }
 
-void handleERROR(uint8_t ERROR_code)
+void handleERROR(uint8_t ERROR_code)//when something goes wrong, this func. is caled, but what to do next ?
 {
 	switch(ERROR_code)
 	{
 		case I2C_start_err:
 		{
 			uart_puts("cant access to BMP085 sensor on I2C bus!");
+			i2c_stop();
 			break;
 		}
 		case DHT_err:
@@ -480,8 +486,9 @@ void handleERROR(uint8_t ERROR_code)
 		
 		
 	}
-	uart_puts("due to error, performing device reset!");
-	delay(10000);
-	Reset_AVR();
+	//give it a chance, don't be so strict
+	//uart_puts("due to error, performing device reset!");
+	//delay(10000);
+	//Reset_AVR();
 	//while(1)asm volatile("NOP");//wait forever
 }
