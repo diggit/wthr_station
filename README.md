@@ -27,6 +27,8 @@ Final project on secondary school, meteorological/weather station with web acces
 * In **designs** are models of housing for sensor module now, openscad source and stls of individual parts.
   STLs may be out of date. Use openscad to get up to date design of housing.
 
+* In **photo** are photos of station and it's parts. It really exists!
+
 ## STATUS
 * working, needs webpage design improvement
 * look at: http://m72.dkm.cz or http://meteo-chodov.tk
