@@ -17,7 +17,15 @@
 
 //#define debug
 
-#define _NOP asm volatile("NOP")//we have optimizations, empty while(1) loops are not ok, _NOP fixes this
+//i2c library for communication
+#include "i2cmaster.c"
+
+#include "calibrated_loop.c"
+
+
+#ifndef _NOP
+	#define _NOP asm volatile("NOP")//we have optimizations, empty while(1) loops are not ok, _NOP fixes this
+#endif
 
 #define Reset_AVR() wdt_enable(WDTO_30MS); while(1) {_NOP;}//little workaround, atmega has no software reset
 
@@ -27,12 +35,12 @@
 
 #include "uart_lib.c"//useful UART functions, init, send, receive and so on
 
+#include "temp.c"
+
 //basic macros for simple bit writing
 #define bit_set(p,m) ((p) |= (m))
 #define bit_clr(p,m) ((p) &= ~(m))
 
-//i2c library for communication
-#include "i2cmaster.c"
 
 //addresses of i2c sensor
 #define BMP_ADDR 0b11101110
@@ -43,11 +51,10 @@
 //DHT start sequence
 
 
-
 #define DHTP PORTB //PORT where DHT11 data pin is attached
 #define DHTD DDRB  //...it's configuration register (I/O selection)
 #define DHTI PINB  //register where to get actual status of input
-#define DHT_START(b) bit_set(DHTD,b); delay_p(1000*30); bit_clr(DHTD,b); delay_p(4*10)//; bit_clr(DHTD,b)//; bit_clr(DHTP,b) //shouldn't be DHTP (pull-up) bit 2 cleared too?
+#define DHT_START(b) bit_set(DHTD,b); delay_us(1000*30); bit_clr(DHTD,b); delay_us(4*10)//; bit_clr(DHTD,b)//; bit_clr(DHTP,b) //shouldn't be DHTP (pull-up) bit 2 cleared too?
 
 //resolution of BMP085 pressure measurement
 #define resolution 3 //0 fastest - worst, 3 slowest - best
@@ -57,12 +64,17 @@
 #define matching_min 3 //samples count which value shouldn't be too far from it's avg. value eg AVG:200 val1:201 val2:198 val3:203 -worst distance is 3 (=|200-203|), values above are tresholds 
 #define max_tries 5 //if measured values were too far from their AVG value, try it until OK or max_tries is reached
 
-char str_buffer[]="XXXXXXXXXXX\0";
+//options for extended temperature sensor board
+#define temp_ex_samples 3
+#define temp_ex_pause	300 //ms
+
+
+//char str_buffer[]="XXXXXXXXXXX\0"; //remove?
 
 //error codes definition
-#define I2C_start_err	1
-#define DHT_err			2
-
+#define I2C_BMP_start_err	1
+#define I2C_EXT_start_err	2
+#define DHT_err				3
 
 int8_t response[5]={0,0,0,0,0};//init with zeros, buffer for DHT11
 
@@ -71,19 +83,9 @@ int32_t calc_temp();
 void getCV();
 long calc_pressure();
 uint32_t readNB(uint8_t address, uint8_t bytes);
-//char *itos(int32_t num);
 void DHT(uint8_t bit);
 void handleERROR(uint8_t ERROR_code);
 
-void delay_p(unsigned long delay)//takes 8 cycles, at 16MHz means half of micro second (freq*time)/repeated
-{
-	delay=delay<<1;//multiply by 2 to get 1uS delay
-	while(delay--) {_NOP;_NOP;}
-};//dont try to optimize, it's calibrated! (gcc -O2)
-
-
-//library for operations with temperature board
-#include "temp.c"
 
 struct { //downloaded calibration values
 	int16_t ac1;
@@ -119,24 +121,6 @@ inline int32_t sabs( int32_t num)
 
 int main (void)
 {
-	/*
-	DDRC|=1;
-	int i;
-	while(1)
-	{
-		PORTC|=1;
-		for(i=0;i<100;i++)
-			delay_p(10000);
-		PORTC&=~(1);
-		for(i=0;i<100;i++)
-			delay_p(10000);
-		
-		
-		
-	}*/
-	
-	//DHTP|=(1<<2);
-	//PORTB |=2;
 	uart_init();//init UART
 	uart_puts("booted...\n");
 	//while(1)NOP;
@@ -144,17 +128,29 @@ int main (void)
 #ifdef debug
 	uart_puts("i2c bus ready...\n");
 #endif
-	//while(1)NOP;
-	//uart_puts("whaat?!\n");
 	
 	getCV();//download callibration values from BMP085
 #ifdef debug
 	uart_puts("i2c communication success...\n");
 #endif
 	calc_temp();//initial reading
-	//uart_puts("got temterature\n");
-	calc_pressure();
-	//uart_puts("got pressure\n");
+	calc_pressure();//same here
+
+#ifdef debug
+	int ret;
+	ret=ADTconfig();
+	if(ret)
+	{
+		uart_puts("failed init with EX temp. sensor: ");
+		uart_num(ret,1);
+		uart_putc('\n');
+	}
+	else
+		uart_puts("extended temp. board init success...\n");
+#else
+	if(ADTconfig())
+		handleERROR(I2C_EXT_start_err);
+#endif
 	
 	set_sleep_mode(SLEEP_MODE_IDLE); //choose most suitable sleep mode - IDLE (still running UART)
 	sleep_enable();//enable sleeping
@@ -200,7 +196,7 @@ void DHT(uint8_t bit)
 		{
 			response[j]=response[j]<<1;//shift left - prepare for new (1<<bit)
 			while(!(DHTI&(1<<bit)));//wait for pull up
-			delay_p(50);
+			delay_us(50);
 			if(DHTI&(1<<bit))//i still pulled up>longer pulse>LOG1
 			{
 				response[j]|=1;//set lowest (1<<bit)
@@ -225,7 +221,7 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 	uint8_t cnt,cnt2;
 	uint8_t OK=0;
 	char reply=UDR; 
-	int16_t temp=0;
+	int16_t temp=0,tempEX=0;
 	int16_t Tavg;
 	int16_t Tbuf [matching_min];
 	
@@ -234,6 +230,9 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 	uint32_t Pbuf [matching_min];
 	if(reply=='Q')//send data as response fo Query
 	{
+		//power on sensors on EXT board
+		ADTwake();
+		
 		for(cnt2=0;cnt2<max_tries && !(OK);cnt2++)
 		{
 #ifdef debug
@@ -263,7 +262,7 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 				{
 					OK=0;
 #ifdef debug					
-					uart_puts("Temperature is out of tollerance: ");
+					uart_puts("Temperature from BMP085 is out of tollerance: ");
 					uart_num(Tbuf[cnt],1);
 					uart_puts("\n avg: ");
 					uart_num(Tavg,1);
@@ -275,7 +274,7 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 				{
 					OK=0;
 #ifdef debug					
-					uart_puts("Presuure is out of tollerance, value: \n");
+					uart_puts("Pressure from BMP085 is out of tollerance, value: \n");
 					uart_num(Pbuf[cnt],1);
 					uart_putc('\n');
 					uart_num(sabs(Pbuf[cnt]-Pavg),1);
@@ -307,12 +306,20 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 			Reset_AVR();
 
 		}
+		
+		tempEX=ADTmeasure(temp_ex_samples,temp_ex_pause);//get value from EX board
+		ADTshutdown();
+		
 		uart_puts("!,MULTISNS1,T0,");//some ID
-		uart_num(temp,1);
-		uart_puts(",P0,");
+		uart_num(tempEX,1);//temp from ex
+		
+		uart_puts(",T1,");
+		uart_num(temp,1);//temp from BMP085
+		
+		uart_puts(",P0,");//pressure from BMP085
 		uart_num(press,1);
-		uart_puts(",H0,");
-		DHT(2);
+		uart_puts(",H0,");//himudity from DHT11
+		DHT(2);//start measurement
 		uart_num(response[0],1);
 		uart_puts(",$\n");
 		
@@ -356,14 +363,14 @@ uint32_t readNB(uint8_t reg_addr, uint8_t bytes)//reads 'bytes' bytes (up to 4) 
 	//uart_puts("reading BMP\n");
 	if(i2c_start(BMP_ADDR))//we wanna say what to read, that is writing...
 	{
-		handleERROR(I2C_start_err);
+		handleERROR(I2C_BMP_start_err);
 		//uart_puts("track point 2\n");
 	}
 	//uart_puts("track point 1\n");
 	i2c_write(reg_addr);//read from given addr
 	if(i2c_rep_start(BMP_ADDR|1))//restart i2c comm. for reading now
 	{
-		handleERROR(I2C_start_err);
+		handleERROR(I2C_BMP_start_err);
 	}
 	
 	for(i=0;i<bytes;i++)
@@ -390,7 +397,7 @@ int32_t calc_temp()//measures raw value, converts it into human readable value a
 	//uart_puts("calc temp\n");
 	if(i2c_start(BMP_ADDR))//we wanna say what to read, that is writing...
 	{
-		handleERROR(I2C_start_err);
+		handleERROR(I2C_BMP_start_err);
 #ifdef debug
 		uart_puts("track point 2\n");
 #endif
@@ -422,7 +429,7 @@ long calc_pressure()//similar to calc_temp, but works with pressure
 	
 	if(i2c_start(BMP_ADDR))//we wanna say what to read, that is writing...
 	{
-		handleERROR(I2C_start_err);
+		handleERROR(I2C_BMP_start_err);
 	}
 	err+=i2c_write(0xF4);//we wanna write to control reg.
 	err+=i2c_write(0x34+(resolution<<6));//and measure pressure
@@ -472,9 +479,15 @@ void handleERROR(uint8_t ERROR_code)//when something goes wrong, this func. is c
 {
 	switch(ERROR_code)
 	{
-		case I2C_start_err:
+		case I2C_BMP_start_err:
 		{
 			uart_puts("cant access to BMP085 sensor on I2C bus!");
+			i2c_stop();
+			break;
+		}
+		case I2C_EXT_start_err:
+		{
+			uart_puts("cant access to one or more sensors on extension temperature board on I2C bus!");
 			i2c_stop();
 			break;
 		}
