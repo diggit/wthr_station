@@ -4,7 +4,7 @@
 Final project on secondary school, meteorological/weather station with web access.
 
 ## Divided into two main parts:
-* Sensors with MCU outside, collecting various values
+* Sensors with MCU outside, collecting various values. Newly extended by temperature sensor board (3 ICs). 
 * Software running on RaspberryPi, grabs values from sensor "module",
     stores them in mysql database and publishes them on web.
 
@@ -30,5 +30,6 @@ Final project on secondary school, meteorological/weather station with web acces
 ## STATUS
 * working, needs webpage design improvement
 * look at: http://m72.dkm.cz or http://meteo-chodov.tk
-* Temperature measurements from BMP085 are quite accurate. Sometimes happen, that sensor returs 0°C instead of real value. I was unable to fix it up. New temperature sensor board development is in progress. Sensors are 3 ADT7410 16bit i2c ICs.
+* ~~Temperature measurements from BMP085 are quite accurate.~~ Sometimes happen, that sensor returs 0°C instead of real value. I was unable to fix it up.
+* Extension board with 3 temperature sensors ADT7410 16bit i2c ICs is working. BMP085 reports higher temperature, 1.5°C (approx) above new sensor's value. 
 * my 3D printer is not functional now, but I prepared top housing part for new light sensor. This sensor is in queue.
