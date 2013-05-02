@@ -28,13 +28,11 @@
 #endif
 
 #define Reset_AVR() wdt_enable(WDTO_30MS); while(1) {_NOP;}//little workaround, atmega has no software reset
-
 #define FOSC 16000000UL //MCU crystal freq.
 #define BAUD 19200UL //speed of UART, for short distances could be increased, bud don't forget to change value in grabber script on server...
 #define UA_RX_INT_EN 1 //enable UART recieve INT
 
 #include "uart_lib.c"//useful UART functions, init, send, receive and so on
-
 #include "temp.c"
 
 //basic macros for simple bit writing
@@ -42,7 +40,7 @@
 #define bit_clr(p,m) ((p) &= ~(m))
 
 
-//addresses of i2c sensor
+//addresses of BMP085 i2c sensor
 #define BMP_ADDR 0b11101110
 #define READ	 1 //lowest bit in addr selects READ/write
 
@@ -65,8 +63,8 @@
 #define max_tries 5 //if measured values were too far from their AVG value, try it until OK or max_tries is reached
 
 //options for extended temperature sensor board
-#define temp_ex_samples 3
-#define temp_ex_pause	300 //ms
+#define temp_ex_samples 5
+#define temp_ex_pause	500 //ms
 
 
 //char str_buffer[]="XXXXXXXXXXX\0"; //remove?
@@ -75,6 +73,9 @@
 #define I2C_BMP_start_err	1
 #define I2C_EXT_start_err	2
 #define DHT_err				3
+
+#define STRING_VERSION __DATE__ " " __TIME__ // build date and time
+
 
 int8_t response[5]={0,0,0,0,0};//init with zeros, buffer for DHT11
 
@@ -122,7 +123,9 @@ inline int32_t sabs( int32_t num)
 int main (void)
 {
 	uart_init();//init UART
-	uart_puts("booted...\n");
+	uart_puts("booted...\ncompiled: ");
+	uart_puts(STRING_VERSION);
+	uart_putc('\n');
 	//while(1)NOP;
 	i2c_init();//bring up I2C
 #ifdef debug
@@ -221,17 +224,17 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 	uint8_t cnt,cnt2;
 	uint8_t OK=0;
 	char reply=UDR; 
-	int16_t temp=0,tempEX=0;
+	int16_t temp=0;
 	int16_t Tavg;
 	int16_t Tbuf [matching_min];
 	
+	int32_t tempEX=0;
 	uint32_t press=0;
 	uint32_t Pavg;
 	uint32_t Pbuf [matching_min];
 	if(reply=='Q')//send data as response fo Query
 	{
-		//power on sensors on EXT board
-		ADTwake();
+		
 		
 		for(cnt2=0;cnt2<max_tries && !(OK);cnt2++)
 		{
@@ -307,11 +310,13 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 
 		}
 		
+		//power on sensors on EXT board
+		//ADTwake();
 		tempEX=ADTmeasure(temp_ex_samples,temp_ex_pause);//get value from EX board
-		ADTshutdown();
+		//ADTshutdown();
 		
 		uart_puts("!,MULTISNS1,T0,");//some ID
-		uart_num(tempEX,1);//temp from ex
+		uart_num((int32_t)tempEX,3);//temp from ex
 		
 		uart_puts(",T1,");
 		uart_num(temp,1);//temp from BMP085
