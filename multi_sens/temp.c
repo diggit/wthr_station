@@ -19,7 +19,7 @@ int ADTconfig()
 		if(i2c_start(TADDR[i]))
 			return (i+1);//return number of not responding sensor
 		i2c_write(0x03);//config reg
-		i2c_write(0b11100000);//set into high res. mode and shutdown
+		i2c_write(0b10000000);//set into high res. mode and shutdown
 		i2c_stop();
 	}
 	return 0;
@@ -36,9 +36,7 @@ void ADTwake()
 		i2c_write(0b10000000);
 		i2c_stop();
 	}
-	//delay fow proper wakeup
 	
-	delay_us(500000);//decrease?
 }
 
 void ADTshutdown()
@@ -57,14 +55,17 @@ void ADTshutdown()
 
 int32_t ADTmeasure(uint8_t samples,uint16_t sample_pause_ms)
 {
-	int32_t temp=0;
+	int32_t output;
+	int16_t temp=0;
 	
 	uint8_t i,j;
 	int8_t Htemp;
-	int16_t Ltemp,output;
+	int16_t Ltemp;
 
 	
+	//delay fow proper wakeup
 	
+	delay_us(300000);//decrease?
 	
 	for(j=0;samples>j;j++)//take N samples
 	{
@@ -74,18 +75,17 @@ int32_t ADTmeasure(uint8_t samples,uint16_t sample_pause_ms)
 		{
 			i2c_start(TADDR[i]|1);//start reading
 			Htemp=i2c_readAck();//recieve degrees
-			Ltemp=(i2c_readNak()>>4);//recieve decimals (hexadecimals correctly), align them on lower bits
+			Ltemp=i2c_readNak();//recieve decimals (hexadecimals correctly), align them on lower bits
 			i2c_stop();
 			temp+=(Htemp<<8)+Ltemp;
-			//uart_num((Htemp<<8)+Ltemp,4);
-			//uart_putc('\n');
+#ifdef debug
+			uart_num((Htemp<<8)+Ltemp,4);
+			uart_putc('\n');
+#endif
 
 		}
 		delay_us((uint32_t)1000*sample_pause_ms);
 	}
-	
-	
-	//check sign!!!!!!!!!!!!!!!!!!!________________________________________________________________
 	
 	
 
