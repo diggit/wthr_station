@@ -9,7 +9,10 @@ CC             = avr-gcc
 
 # Override is only needed by avr-lib build system.
 
-override CFLAGS = -g -Wall $(OPTIMIZE) -mmcu=$(MCU_TARGET) $(DEFS) 
+override CFLAGS = -g -Wall $(OPTIMIZE) -ffunction-sections -mmcu=$(MCU_TARGET) $(DEFS) 
+
+# because we would not include unused functions
+LDFLAGS += -Wl,-gc-sections
 
 OBJCOPY        = avr-objcopy
 OBJDUMP        = avr-objdump
