@@ -124,7 +124,6 @@ int main (void)
 	uart_puts("booted...\ncompiled: ");
 	uart_puts(STRING_VERSION);
 	uart_putc('\n');
-	//while(1)NOP;
 	i2c_init();//bring up I2C
 #ifdef debug
 	uart_puts("i2c bus ready...\n");
@@ -173,7 +172,6 @@ int main (void)
 #endif
 		sleep_enable();
 		sleep_cpu();//MCU is awaken on every interrupt, this will sleep it back again...
-		//_NOP;
 	}	
 	
 	return 0;
@@ -377,13 +375,10 @@ uint32_t BMP_read_NB(uint8_t reg_addr, uint8_t bytes)//reads 'bytes' bytes (up t
 	if(bytes>4){bytes=4;} //higher vals. shrink to 4
 	bytes--;//now, our values are 0-3, better suits here
 	
-	//uart_puts("reading BMP\n");
 	if(i2c_start(BMP_ADDR))//we wanna say what to read, that is writing...
 	{
 		handleERROR(I2C_BMP_start_err);
-		//uart_puts("track point 2\n");
 	}
-	//uart_puts("track point 1\n");
 	i2c_write(reg_addr);//read from given addr
 	if(i2c_rep_start(BMP_ADDR|1))//restart i2c comm. for reading now
 	{
@@ -411,7 +406,6 @@ int32_t BMP_calc_temp()//measures raw value, converts it into human readable val
 	int32_t X1,X2;//buffers for translate vals into human readable
 	
 	//proceed temp mesurement 
-	//uart_puts("calc temp\n");
 	if(i2c_start(BMP_ADDR))//we wanna say what to read, that is writing...
 	{
 		handleERROR(I2C_BMP_start_err);
@@ -453,9 +447,6 @@ long BMP_calc_pressure()//similar to BMP_calc_temp, but works with pressure
 	
 	raw_p=(BMP_read_NB(0xF6,3))>>(8-resolution);
 
-	//example_run();
-	//raw_p=23843;
-	
 	//main calculation, formula also copied from sensors datasheet
 	CVC.b6=CVC.b5-4000; //this affects temp. dependency
 	X1=(CV.b2 * ((CVC.b6*CVC.b6)>>12))>>16;
@@ -476,8 +467,7 @@ long BMP_calc_pressure()//similar to BMP_calc_temp, but works with pressure
 	X1=(X1 * 3038)>>16;
 	X2=(-7357 * p)>>16;
 	p+=(X1 + X2 + 3791)>>4;//original
-	//p+=3400;//my sensor has wrong value at output, offset added to fix it, I hope, It'll work ;-)
-	//haaa mistake, final value must be calculated, it is now done in python script, look onto BMP085 datasheet for more info...
+	//final value must be calculated, it is now done in python script, look into BMP085 datasheet for more info...
 	return p;
 }
 
