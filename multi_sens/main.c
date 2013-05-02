@@ -12,7 +12,6 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
-//#include "display_ex.c" //functions for more elegant display output
 #include <avr/wdt.h>
 
 //#define debug
@@ -20,6 +19,7 @@
 //i2c library for communication
 #include "i2cmaster.c"
 
+//calibrated delay loop is outside (included by other libs)
 #include "calibrated_loop.c"
 
 
@@ -27,63 +27,61 @@
 	#define _NOP asm volatile("NOP")//we have optimizations, empty while(1) loops are not ok, _NOP fixes this
 #endif
 
-#define Reset_AVR() wdt_enable(WDTO_30MS); while(1) {_NOP;}//little workaround, atmega has no software reset
-#define FOSC 16000000UL //MCU crystal freq.
-#define BAUD 19200UL //speed of UART, for short distances could be increased, bud don't forget to change value in grabber script on server...
-#define UA_RX_INT_EN 1 //enable UART recieve INT
-
-#include "uart_lib.c"//useful UART functions, init, send, receive and so on
-#include "temp.c"
-
 //basic macros for simple bit writing
 #define bit_set(p,m) ((p) |= (m))
 #define bit_clr(p,m) ((p) &= ~(m))
 
+//UART----------------------------------------------------------------------------------------------------------------------------------------
+#define Reset_AVR() wdt_enable(WDTO_30MS); while(1) {_NOP;}//little workaround, atmega has no software reset
+#define FOSC 16000000UL //MCU crystal freq.
+#define BAUD 19200UL //speed of UART, for short distances could be increased, bud don't forget to change value in grabber script on server...
+#define UA_RX_INT_EN 1 //enable UART recieve INT
+#include "uart_lib.c"//useful UART functions, init, send, receive and so on
+//UART----------------------------------------------------------------------------------------------------------------------------------------
 
-//addresses of BMP085 i2c sensor
-#define BMP_ADDR 0b11101110
-#define READ	 1 //lowest bit in addr selects READ/write
-
-//waiting for signal that indicates End Of Conversion on pin PB0
-#define WFC() while( !(PINC & 2) )_NOP; //Wait For Conversion
-//DHT start sequence
-
-
+//DHT11-config--------------------------------------------------------------------------------------------------------------------------------
 #define DHTP PORTB //PORT where DHT11 data pin is attached
 #define DHTD DDRB  //...it's configuration register (I/O selection)
 #define DHTI PINB  //register where to get actual status of input
 #define DHT_START(b) bit_set(DHTD,b); delay_us(1000*30); bit_clr(DHTD,b); delay_us(4*10)//; bit_clr(DHTD,b)//; bit_clr(DHTP,b) //shouldn't be DHTP (pull-up) bit 2 cleared too?
+//DHT11-config--------------------------------------------------------------------------------------------------------------------------------
 
+//BMP085-config-------------------------------------------------------------------------------------------------------------------------------
+//addresses of BMP085 i2c sensor
+#define BMP_ADDR 0b11101110
+#define READ	 1 //lowest bit in addr selects READ/write
+//waiting for signal that indicates End Of Conversion on pin PB0
+#define WFC() while( !(PINC & 2) )_NOP; //Wait For Conversion
 //resolution of BMP085 pressure measurement
 #define resolution 3 //0 fastest - worst, 3 slowest - best
-
 #define pressure_noise 10 //pressure treshold
 #define temperature_noise 5 //temperature treshold
 #define matching_min 3 //samples count which value shouldn't be too far from it's avg. value eg AVG:200 val1:201 val2:198 val3:203 -worst distance is 3 (=|200-203|), values above are tresholds 
 #define max_tries 5 //if measured values were too far from their AVG value, try it until OK or max_tries is reached
+//BMP085-config-------------------------------------------------------------------------------------------------------------------------------
 
+
+//extended-temperature-board------------------------------------------------------------------------------------------------------------------
 //options for extended temperature sensor board
 #define temp_ex_samples 5
 #define temp_ex_pause	500 //ms
+#include "temp.c"//library for extended temperature board
+//extended-temperature-board------------------------------------------------------------------------------------------------------------------
 
-
-//char str_buffer[]="XXXXXXXXXXX\0"; //remove?
-
-//error codes definition
+//error codes definitions
 #define I2C_BMP_start_err	1
 #define I2C_EXT_start_err	2
 #define DHT_err				3
 
 #define STRING_VERSION __DATE__ " " __TIME__ // build date and time
 
-
 int8_t response[5]={0,0,0,0,0};//init with zeros, buffer for DHT11
 
-void delay(uint16_t num) ;
-int32_t calc_temp();
-void getCV();
-long calc_pressure();
-uint32_t readNB(uint8_t address, uint8_t bytes);
+
+int32_t BMP_calc_temp();
+void BMP_get_CalibV();
+long BMP_calc_pressure();
+uint32_t BMP_read_NB(uint8_t address, uint8_t bytes);
 void DHT(uint8_t bit);
 void handleERROR(uint8_t ERROR_code);
 
@@ -132,27 +130,31 @@ int main (void)
 	uart_puts("i2c bus ready...\n");
 #endif
 	
-	getCV();//download callibration values from BMP085
+	BMP_get_CalibV();//download callibration values from BMP085
 #ifdef debug
-	uart_puts("i2c communication success...\n");
+	uart_puts("BMP085 i2c comm. success...\n");
 #endif
-	calc_temp();//initial reading
-	calc_pressure();//same here
+	BMP_calc_temp();//initial reading
+	BMP_calc_pressure();//same here
 
 #ifdef debug
 	int ret;
 	ret=ADTconfig();
 	if(ret)
 	{
-		uart_puts("failed init with EX temp. sensor: ");
+		uart_puts("failed init of EX temp. sensor: ");
 		uart_num(ret,1);
 		uart_putc('\n');
 	}
 	else
-		uart_puts("extended temp. board init success...\n");
+		uart_puts("ext. temp. board init success...\n");
 #else
 	if(ADTconfig())
 		handleERROR(I2C_EXT_start_err);
+#endif
+	ADTshutdown();//put sensors into shutdown mode (low self heating)
+#ifdef debug
+	uart_puts("ADTs are powered off NOW")
 #endif
 	
 	set_sleep_mode(SLEEP_MODE_IDLE); //choose most suitable sleep mode - IDLE (still running UART)
@@ -229,10 +231,11 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 	int16_t Tbuf [matching_min];
 	
 	int32_t tempEX=0;
+	
 	uint32_t press=0;
 	uint32_t Pavg;
 	uint32_t Pbuf [matching_min];
-	if(reply=='Q')//send data as response fo Query
+	if(reply=='Q')//send data as response of Query
 	{
 		
 		
@@ -248,10 +251,10 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 			Pavg=0;
 			for(cnt=0;cnt<matching_min;cnt++)//load "matching_min" samples
 			{
-				Tbuf[cnt]=calc_temp();//store measured data
+				Tbuf[cnt]=BMP_calc_temp();//store measured data
 				Tavg+=Tbuf[cnt];//add to average
 				
-				Pbuf[cnt]=calc_pressure();
+				Pbuf[cnt]=BMP_calc_pressure();
 				Pavg+=Pbuf[cnt];
 			}
 			Tavg/=matching_min;//calculate average value (for comparison)
@@ -291,6 +294,9 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 				}
 			}
 		}
+#ifdef debug
+			uart_puts("BMP085 - done");
+#endif
 		
 		if(OK)
 		{
@@ -311,9 +317,15 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 		}
 		
 		//power on sensors on EXT board
-		//ADTwake();
+		ADTwake();
+#ifdef debug
+			uart_puts("ADTs on");
+#endif
 		tempEX=ADTmeasure(temp_ex_samples,temp_ex_pause);//get value from EX board
-		//ADTshutdown();
+		ADTshutdown();
+#ifdef debug
+			uart_puts("ADTs off");
+#endif
 		
 		uart_puts("!,MULTISNS1,T0,");//some ID
 		uart_num((int32_t)tempEX,3);//temp from ex
@@ -335,29 +347,29 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 		Reset_AVR();
 	}
 	else uart_puts("send Q to get data or R for reset\n");
-	delay(600);//DHT needs some refresh, just for case of too often reading
+	delay_us(500000);//DHT needs some refresh, just for case of too often reading
 	uart_flush();/*something weird, if Q was incomming without pause, interrupt occured one by one. 
 	* No MCU sleep was done. 24th reading from sensors returned wrong values and next would block MCU. 
 	* Solution was total MCU Reset (see above). So, multiple requests (too short pause between them) are ignored for now...*/
 	sei();
 }
 
-void getCV()//downloads Calibration Values from sensor
+void BMP_get_CalibV()//downloads Calibration Values from sensor
 {
-	CV.ac1 = readNB(0xAA,2);
-	CV.ac2 = readNB(0xAC,2);
-	CV.ac3 = readNB(0xAE,2);
-	CV.ac4 = readNB(0xB0,2);
-	CV.ac5 = readNB(0xB2,2);
-	CV.ac6 = readNB(0xB4,2);
-	CV.b1 = readNB(0xB6,2);
-	CV.b2 = readNB(0xB8,2);
-	CV.mb = readNB(0xBA,2);
-	CV.mc = readNB(0xBC,2);
-	CV.md = readNB(0xBE,2);
+	CV.ac1 = BMP_read_NB(0xAA,2);
+	CV.ac2 = BMP_read_NB(0xAC,2);
+	CV.ac3 = BMP_read_NB(0xAE,2);
+	CV.ac4 = BMP_read_NB(0xB0,2);
+	CV.ac5 = BMP_read_NB(0xB2,2);
+	CV.ac6 = BMP_read_NB(0xB4,2);
+	CV.b1 = BMP_read_NB(0xB6,2);
+	CV.b2 = BMP_read_NB(0xB8,2);
+	CV.mb = BMP_read_NB(0xBA,2);
+	CV.mc = BMP_read_NB(0xBC,2);
+	CV.md = BMP_read_NB(0xBE,2);
 }
 
-uint32_t readNB(uint8_t reg_addr, uint8_t bytes)//reads 'bytes' bytes (up to 4) from address defined by RA/WA beginning on given register address 
+uint32_t BMP_read_NB(uint8_t reg_addr, uint8_t bytes)//reads 'bytes' bytes (up to 4) from address defined by RA/WA beginning on given register address 
 {
 	uint8_t raw[]={0,0,0,0};//maximal 4 bytes to read
 	uint32_t sum=0;
@@ -393,7 +405,7 @@ uint32_t readNB(uint8_t reg_addr, uint8_t bytes)//reads 'bytes' bytes (up to 4) 
 }
 
 
-int32_t calc_temp()//measures raw value, converts it into human readable value and returns it
+int32_t BMP_calc_temp()//measures raw value, converts it into human readable value and returns it
 {
 	uint8_t err=0;//err test, only for debug purposes, won't be used
 	int32_t X1,X2;//buffers for translate vals into human readable
@@ -403,21 +415,18 @@ int32_t calc_temp()//measures raw value, converts it into human readable value a
 	if(i2c_start(BMP_ADDR))//we wanna say what to read, that is writing...
 	{
 		handleERROR(I2C_BMP_start_err);
-#ifdef debug
-		uart_puts("track point 2\n");
-#endif
 	}
 	//uart_puts("chat opened\n");
 	err+=i2c_write(0xF4);//we wanna write to control reg.
 	err+=i2c_write(0x2E);//and initiate temp mesurement
 	i2c_stop();
 	
-	delay(20);
+	delay_us(20000);
 	WFC();//wait for EOC
-	delay(80);//maybe can prevent of reading random O temp.
+	delay_us(80000);//maybe can prevent of reading random O temp.
 	
 	//read raw temp value
-	uint16_t UT=(uint16_t)readNB(0xF6,2);
+	uint16_t UT=(uint16_t)BMP_read_NB(0xF6,2);
 	
 	//converting, this magic formula was copied from sensors datasheet
 	X1=(((int32_t)UT-(int32_t)CV.ac6)*(int32_t)CV.ac5)>>15;
@@ -426,7 +435,7 @@ int32_t calc_temp()//measures raw value, converts it into human readable value a
 	return((CVC.b5+8)>>4);
 }
 
-long calc_pressure()//similar to calc_temp, but works with pressure
+long BMP_calc_pressure()//similar to BMP_calc_temp, but works with pressure
 {
 	uint8_t err=0;
 	int32_t X1,X2,X3,p;
@@ -442,7 +451,7 @@ long calc_pressure()//similar to calc_temp, but works with pressure
 	
 	WFC();//wait for EOC
 	
-	raw_p=(readNB(0xF6,3))>>(8-resolution);
+	raw_p=(BMP_read_NB(0xF6,3))>>(8-resolution);
 
 	//example_run();
 	//raw_p=23843;
@@ -472,27 +481,19 @@ long calc_pressure()//similar to calc_temp, but works with pressure
 	return p;
 }
 
-void delay(uint16_t num) //simple delay loop, really stupid but works
-{
-	uint16_t i,j;
-	for (i = 0; i < num; i++)
-		for (j=0;j<1000;j++)
-			_NOP;
-}
-
 void handleERROR(uint8_t ERROR_code)//when something goes wrong, this func. is caled, but what to do next ?
 {
 	switch(ERROR_code)
 	{
 		case I2C_BMP_start_err:
 		{
-			uart_puts("cant access to BMP085 sensor on I2C bus!");
+			uart_puts("cant access to BMP085 sensor (I2C)");
 			i2c_stop();
 			break;
 		}
 		case I2C_EXT_start_err:
 		{
-			uart_puts("cant access to one or more sensors on extension temperature board on I2C bus!");
+			uart_puts("one or morese nsors on ext. temperature board are inaccessible (I2C)");
 			i2c_stop();
 			break;
 		}
