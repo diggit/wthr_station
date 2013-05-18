@@ -1,19 +1,30 @@
-.charts {margin:0 auto;}
-.charts img {width:900px;}
-#Atemp {
-	color:green;
+body  {
+	margin: 0;
+    padding: 0;
+    height: 100%;
+	background-color:#929A9D;
 }
-#Apress {
-	color:red;
-}
-#Ahumi {
-	color:blue;
+html  {
+	margin: 0;
+    padding: 0;
+    height: 100%;
 }
 
+#container	{
+	height:100%;
+	position:relative;
+}
+
+.charts {margin:0 auto;}
+.charts img {width:900px;}
+
 #header{
-	width:900px;
-	height:130px;
-	margin:0 auto;
+	z-index:1;
+	position:fixed;
+	left:0;
+	width:100%;
+	height:150px;
+	margin:0;
 	padding-top:20px;
 	background-color:#FFFFFF;
 }
@@ -27,13 +38,26 @@
 	border-radius:10px;
 }
 
+#Atemp {
+	color:green;
+}
+#Apress {
+	color:red;
+}
+#Ahumi {
+	color:blue;
+}
+
 #actual{
 	width:600px;
 	margin:0 auto;
 	text-align:center;
+	margin-bottom:10px;
 }
 
-#actual span{font-size:40px;}
+#actual span{
+	font-size:40px;
+}
 
 #stamp{
 	text-align:center;
@@ -49,28 +73,7 @@
 	
 }
 
-#content{
-	width:900px;
-	margin:0 auto;
-	padding-top:20px;
-	background-color:#FFFFFF;
-	text-align:center;
-}
-
-#content a{
-	font-size:1.5em;
-	
-}
-
-#footer{
-	background-color:#777;
-	text-align:center;
-	margin:0px;
-	padding:10px;
-}
-
 #menu A{
-	/*background-color:#929A9D;*/
 	font-weight:bold;
 	padding:10px 10px;
 	color:#222;
@@ -88,15 +91,34 @@
 	background-color:#929A9D;
 }
 
+#content{
+	width:900px;
+	margin:0 auto 0;
+	padding-top:170px;
+	background-color:#FFFFFF;
+	text-align:center;
+	position:relative;
+	padding-bottom:0px;   /* Height of the footer */
+}
+
+#content a{
+	font-size:1.5em;
+}
+
+#footer{
+	position:relative;
+	background-color:#777;
+	text-align:center;
+	margin:0px;
+	padding:10px;
+}
+
 #note{
 	padding:0 40px 20px 40px;
 	text-align:left;
 }
 
-body  {
-	margin:0px;
-	background-color:#929A9D;
-}
+
 A:link{
 	color:#222;
 }
