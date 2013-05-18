@@ -16,6 +16,10 @@ ttyS_device="/dev/ttyUSB0"
 
 BAUD=19200#baudrate, this must be same at sensor module program!!
 
+UART_TIMEOUT=10#if station doesn't respond in this time, error will be reported
+
+ERR_MSG="Stanice neodpovídá! Kontaktujte správce."#err message when station is not responding, will be on webpage
+
 from os import uname
 
 if uname()[1]=='raspberrypi':
@@ -25,6 +29,7 @@ else:
 
 #	END OF CONFIG
 #----------------------------------------
+
 
 M_lng=[31,28,31,30,31,30,31,31,30,31,30,31]
 
@@ -248,7 +253,7 @@ def gen_image(raw,Iname,Lcolor):
 
 def query_data():
 	try:
-		com=serial.Serial(ttyS_device,BAUD)#open communication
+		com=serial.Serial(ttyS_device,BAUD,timeout=UART_TIMEOUT)#open communication
 		if debug:
 			print("serial device opened")
 	except:
@@ -258,10 +263,10 @@ def query_data():
 	if debug:
 		print("requesting data")
 	com.write(bytes("Q",ENC))#send request on data from measurement
-	raw_recieved=com.readline()#recieve them
+	raw_received=com.readline()#receive them
 	if debug:
-		print("recieved:",raw_recieved)
-	RCVD=str(raw_recieved)[2:-3].split(",")#split them into list, crop: " newline
+		print("received:",raw_received)
+	RCVD=str(raw_received)[2:-3].split(",")#split them into list, crop: " newline
 	com.close()#close our comunication
 	if debug:
 		print("serial device closed")
@@ -292,6 +297,11 @@ def decode_packet(RCVD):
 				values[RCVD[i]]=int(RCVD[i+1])#somethink unknown, just convert and save
 		if debug:
 			print(values)#print debug message
+	else:
+		if debug:
+			print("wrong response from station, it was:",RCVD)
+		gen_actualjs(0,0,0,ERR_MSG)
+		exit(1)
 	return values#dictionary of measured values
 	
 
@@ -315,16 +325,16 @@ def db_access(values):
 		print("requesting data from db")
 
 	curs.execute("SELECT stamp,T0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
-	tmsg=curs.fetchall() #recieve this
+	tmsg=curs.fetchall() #receive this
 
 	curs.execute("SELECT stamp,P0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of P0 (pressure)
-	pmsg=curs.fetchall() #recieve this
+	pmsg=curs.fetchall() #receive this
 
 	curs.execute("SELECT stamp,H0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of h0 (humidity)
-	hmsg=curs.fetchall() #recieve this
+	hmsg=curs.fetchall() #receive this
 
 	if debug:
-		print("recieved")
+		print("received")
 	curs.close()#destruct cursor
 	conn.close()#disconnect from db
 	if debug:
@@ -375,7 +385,7 @@ if not jsonly:
 
 elif(not dry):
 	if not data:
-		print("no data recieved, was right device chosen? (-d nodev ???)")
+		print("no data received, was right device chosen? (-d nodev ???)")
 		exit(1)
 	stamp=strftime("%d.%m. %Y %H:%M")
 	gen_actualjs(data["T0"],data["P0"],data["H0"],stamp) # DAY.MONTH. YEAR HOUR:MIN
