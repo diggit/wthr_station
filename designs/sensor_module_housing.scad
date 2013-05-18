@@ -1,4 +1,4 @@
-$fn=70;
+$fn=100;
 //$fa=0.5;
 //$fs=0.1;
 T_dia_in=54;
@@ -17,7 +17,7 @@ C_count=6;
 C_dia_in=1.7;
 C_thickness=2;
 
-render=5; //1 bottom, 2 middle (1 floor), 3 top, 4 rod mount,5 top W/ window, 0 all
+render=0; //1 bottom, 2 middle (1 floor), 3 top, 4 rod mount,5 top W/ window, 0 all
 
 E_dia=51.4;
 E_height=8.5;
