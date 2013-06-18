@@ -56,7 +56,7 @@ void ADTshutdown()
 int32_t ADTmeasure(uint8_t samples,uint16_t sample_pause_ms)
 {
 	int32_t output;
-	int16_t temp=0;
+	int32_t temp=0;
 	
 	uint8_t i,j;
 	int8_t Htemp;
