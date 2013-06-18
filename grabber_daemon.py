@@ -25,7 +25,7 @@ from os import uname
 if uname()[1]=='raspberrypi':
 	PATH="/home/pi/weather_station/web_app/"
 else:
-	PATH="web_app/"
+	PATH="/home/diggit/dev/dlouhodobka/web_app/"
 
 #	END OF CONFIG
 #----------------------------------------
