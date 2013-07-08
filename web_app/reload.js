@@ -26,9 +26,9 @@ function load_values()
 	xmlhttp.send();
 }
 
-window.onload = startUpdating;
+window.onload = header_begin;
 
-function startUpdating()
+function header_begin()
 {
 	load_values();//initial load
 	setInterval("load_values();",10000);//refresh
