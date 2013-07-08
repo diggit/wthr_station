@@ -140,6 +140,18 @@ def gen_actualjs(T,P,H,stamp):
 	if debug:
 		print("write done!")
 
+def gen_actual_raw(T,P,H,stamp):
+	if debug:
+		print("writing raw file")
+	js=open(PATH+"actual","w")
+	js.write("%0.1f\n" % T)
+	js.write("%i\n" % P)
+	js.write("%i\n" % H)
+	js.write(str(stamp)+"\n")
+	js.close()
+	if debug:
+		print("write done!")
+
 #program flow continues below funcion defs
 def gen_image(raw,Iname,Lcolor):
 	
@@ -389,6 +401,7 @@ elif(not dry):
 		exit(1)
 	stamp=strftime("%d.%m. %Y %H:%M")
 	gen_actualjs(data["T0"],data["P0"],data["H0"],stamp) # DAY.MONTH. YEAR HOUR:MIN
+	gen_actual_raw(data["T0"],data["P0"],data["H0"],stamp) # DAY.MONTH. YEAR HOUR:MIN
 else:
 	print("no write done, js file remains untouched (dry ???)")
 
