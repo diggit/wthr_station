@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="style.css">	
+		<title>weather station test</title>
+		<meta http-equiv="content-type" content="text/html; charset=utf-8">
+		<script src="reload.js"></script>
+		<script src="http://maps.googleapis.com/maps/api/js?sensor=false"></script>
+		<script src="map.js"></script>
+	</head>
+	<body>
+		<div id="container">
+			<div id="header">
+				<div id="actual">
+					<span id="Atemp">0</span>
+					<span id="Apress">0</span>
+					<span id="Ahumi">0</span>
+					<div id="stamp">-.-</div>
+				</div>
+				<div id="menu">
+					<a href="/index.html">Aktuální hodnoty</a><a href="/about.html">O projektu</a><a href="/me.html">Kontakt</a><a></a>
+				</div>
+			</div>
+
+			<div id="spacer"><!-- this is bad --></div>
+			<div id="content">
+				<div id="images">
+						<a class="clickbox">
+								<img src="photo/thumb/img1.png" alt="" />
+							<b class="lightbox">
+								<b class="light"><!-- create bg for img --></b> 
+								<b class="box">
+									<img src="photo/img1.png" alt="" />
+								</b>			
+							</b>
+						</a>
+						<a class="clickbox">
+								<img src="photo/thumb/img2.jpg" alt="" />
+							<b class="lightbox">
+								<b class="light"><!-- create bg for img --></b> 
+								<b class="box">
+									<img src="photo/img2.jpg" alt="" />
+								</b>			
+							</b>
+						</a>
+						<a class="clickbox">
+								<img src="photo/thumb/img3.jpg" alt="" />
+							<b class="lightbox">
+								<b class="light"><!-- create bg for img --></b> 
+								<b class="box">
+									<img src="photo/img3.jpg" alt="" />
+								</b>			
+							</b>
+						</a>
+						<a class="clickbox">
+								<img src="photo/thumb/img4.jpg" alt="" />
+							<b class="lightbox">
+								<b class="light"><!-- create bg for img --></b> 
+								<b class="box">
+									<img src="photo/img4.jpg" alt="" />
+								</b>			
+							</b>
+						</a>
+						<a class="clickbox">
+								<img src="photo/thumb/img5.jpg" alt="" />
+							<b class="lightbox">
+								<b class="light"><!-- create bg for img --></b> 
+								<b class="box">
+									<img src="photo/img5.jpg" alt="" />
+								</b>			
+							</b>
+						</a>
+						<a class="clickbox">
+								<img src="photo/thumb/img6.jpg" alt="" />
+							<b class="lightbox">
+								<b class="light"><!-- create bg for img --></b> 
+								<b class="box">
+									<img src="photo/img6.jpg" alt="" />
+								</b>			
+							</b>
+						</a>
+						<a class="clickbox">
+								<img src="photo/thumb/img7.jpg" alt="" />
+							<b class="lightbox">
+								<b class="light"><!-- create bg for img --></b> 
+								<b class="box">
+									<img src="photo/img7.jpg" alt="" />
+								</b>			
+							</b>
+						</a>
+						<a class="clickbox">
+								<img src="photo/thumb/img8.jpg" alt="" />
+							<b class="lightbox">
+								<b class="light"><!-- create bg for img --></b> 
+								<b class="box">
+									<img src="photo/img8.jpg" alt="" />
+								</b>			
+							</b>
+						</a>
+<!-- 						<a class="clickbox" href="#url">
+								<img src="photo/thumb/img9.jpg" alt="" />
+							<b class="lightbox">
+								<b class="light"></b> 
+								<b class="box">
+									<img src="photo/img9.jpg" alt="" />
+								</b>			
+							</b>
+						</a> -->
+				</div>
+
+
+				<div id="text">
+					<h2>Proč vlastne vznikla?</h2>
+					<p>Projekt meteorologické stanice vznikl v roce 2013 jako maturitní práce. Při samotném výběru téma jsem dlouho přemýšlel do jakého projektu se pustit. Tvořit něco jen kvůli maturitě mi připadalo zbytečné. Myšlenka výroby meteostanice se vynořila z již dříveších návrhů.</p>
+					
+					<h3>Vývoj</h3>
+					<p>Hned jsem začal s návrhem elektroniky a opláštění. Jelikož je celý projekt vedený se silnou opensource myšlenkou, rozhodl jsem se i pro opensource software pro návh elektronických zařízení a plošných spojů <a href="http://www.kicad-pcb.org/">KiCAD</a>. Stejnou cestou se ubíral i vývoj opláštění stanice, tady jsem použil <a href="http://www.openscad.org/">OpenScad</a>.</p>
+					
+					<h3>Metriály</h3>
+					<p>Některé elektronické součástky pro stvabu pocházejí ze mých zásob, jiné zase z: GMe, ebay, AD. Deska pošných spojů je jednoduchá a lze ji vyrobit i v domácích podmínkách. Materiál opláštění je ABS plast a je vytisknuté na <a title="RepRap Mendel Průša (i2)"><i>3D tiskárně</i></a>. J navržena modulárně a umožňuje tedy jednoduché rozšiřování a upravování.</p>
+					
+					<h3>Vybavení stanice</h3>
+					<p>Ve stanici jsou <a href="#strecha" title="podpořte mě...">(zatím)</a> všechny senzory a mikrokontrolér. Všechny senzory jsou již s digitálním výstupem a výstup z nich lze tedy snadno zpracovávat. Pro měření tlaku slouží <a href="http://www.bosch-sensortec.com/homepage/products_3/environmental_sensors_1/bmp085_1/bmp085">BMP085</a>. Relativní vlhkost meří <a href="http://www.elektronovinky.cz/soucastky/sikovny-senzor-teploty-vlhkosti-dht11">DHT11</a>. Teplotu již nyní měří trojice <a href="http://www.analog.com/en/mems-sensors/digital-temperature-sensors/adt7410/products/product.html">ADT7410</a>. Data z těchto senzorů zpracovává mikrokontrolér <a href="http://www.atmel.com/devices/atmega8.aspx">ATmega8</a>. Na příkaz ze serveru se probudí, zapne všechny senzory a změří aktuální hodnoty. Jakmile má data ze všech senzorů, zpracuje je a posílá zpět na server. Poté přechází zpět do úsporného stavu. Je tak omezeno vlastní zahřívání stanice a spotřeba.</p>
+
+					<h3>Zpracování hodnot</h3>
+					<p>Jakmile server obrží data, začne je zpracovávat. Pokud mají sloužit pouze pro hlavičku stránky, nejsou uloženy a je aktualizována jen hlavička. Pokud jsou však tyto hodnoty určeny pro grafy, jsou hodnoty nejdříve uloženy do databáze. (7.7 2013 bylo v databázi již 20500 záznamů) Z hodnot v databázi jsou následně vytvořeny grafy. K aktualizaci hlavičky stránky dochází každou minutu, avšak grafy jsou překresleny jednou za 10 minut. Důvodem je poměrně vysoká náročnost na procesor serveru.</p>
+
+					<h3>Shrnutí</h3>
+					<p>V aktuálním stavu měří stanice teplotu okolního vzduchu, atmosférický tlak a relativní vlhkost vzduchu. Hodnoty ze senzorů nemají velkou odchylku od jiných domácích stanic (čísla nemám kvůlu nedostatku dat ke srovnání). <a href="me.html">Pomozte mi s ověřením měřených hodnot porovnáním s vašimi, ozvěte se.</a> Hodnoty získané ze stanice nemají zaručenou přesnost a proto na sebe nepřebírám na sebe zodpovědnost za jejich přesnost. Problém v přestnosti meření může způsobovat netypické proudění vzduchu kolem domu a také malá izolace od slunečních paprsků. </p>
+
+					<h3>Materiály</h3>
+					<p>Všechny modely, schémata a zdrojové kódy jsou <a href="https://github.com/diggit/wthr_station">zde na githubu</a>.</p>
+
+					<h3>Podpořte projekt</h3>
+					<p>Od nikoho nežádám peníze. Pokud však máte nápad co vylepšit nebo přidat, nebo máte zájem se jakýkoliv způsobem podílet na projektu, určitě se <a href="me.html">ozvěte</a>. Také dotazy týkající se meteostace rád zodpovím. Chtěl bych přidat měření směru a rychlosti větru. Nemá však význam měřit v ulici a je potřeba senzor umístit na střechu. S podporou členů BDKCH by bylo i toto možné. Pokud mi chcete pomoci, zmiňte se o tomto projektu na některé ze schůzí. Za šíření odkazu na web meteostanice budu také vděčný.</p>
+
+					<h3>Kde se meteostanice nachází</h3>
+					<p>Stanice měří v Praze na Chodově nedaleko archivu. Není na zcela ideálním místě, ve 4. podlaží bytového domu. Hodnoty mohou být tak zkreslené, ale možnosti jsou zde omezené.</p>
+					<br>
+
+					<div id="map_canvas"></div>
+				</div>
+				<div id="end"></div>
+
+				
+			</div>
+			<div id="footer">
+				By Patrik Bachan, <a href="/me.html">CONTACT</a>, <a href="https://github.com/diggit/wthr_station">opensource project</a>
+			</div>
+		</div>
+	</body>
+</html>
+
