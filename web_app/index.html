@@ -4,33 +4,25 @@
 		<link rel="stylesheet" type="text/css" href="style.css">	
 		<title>weather station test</title>
 		<meta http-equiv="content-type" content="text/html; charset=utf-8">
-	<script src="actual.js"></script>
-
+		<script src="reload.js"></script>
 	</head>
 	<body>
 		<div id="container">
 			<div id="header">
 				<div id="actual">
-					<span id="Atemp">
-						<script>document.write(last_temp.toFixed(1)+" °C");</script>
-					</span>
-					<span id="Apress">
-						<script>document.write(last_press+" hPa");</script>
-					</span>
-					<span id="Ahumi">
-						<script>document.write(last_humi+" %");</script>
-					</span>
-					<div id="stamp">
-						<script>document.write(stamp);</script>
-					</div>
+					<span id="Atemp">0</span>
+					<span id="Apress">0</span>
+					<span id="Ahumi">0</span>
+					<div id="stamp">-.-</div>
 				</div>
 				<div id="menu">
-					<a href="/index.html">Hlavní strana</a><a href="/about.html">O projektu</a><a href="/me.html">Kontakt</a><a></a>
+					<a href="/index.html">Aktuální hodnoty</a><a href="/about.html">O projektu</a><a href="/me.html">Kontakt</a><a></a>
 				</div>
 			</div>
 
+			<div id="spacer"><!-- this is bad --></div>
 			<div id="content">
-				<div class="charts">
+				<div id="charts">
 					<div id="temperature">
 						<a>Teplota posledních dnech v °C</a>
 						<img src="charts/temp-lowres.png" alt="tempterature history">
