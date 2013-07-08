@@ -1,6 +1,6 @@
-$fn=100;
-//$fa=0.5;
-//$fs=0.1;
+//$fn=200;
+$fa=0.5;
+$fs=0.1;
 T_dia_in=54;
 T_thickness=1;
 T_height=30;
@@ -9,7 +9,7 @@ R_dia_in=T_dia_in;
 R_thickness=1;
 R_dia_increase=10;
 R_height=15;
-R_count=5;
+R_count=3;
 R_overlap=4;
 R_base=4;
 
@@ -90,7 +90,7 @@ module base(){
 			difference()
 			{
 				for(i=[0:1:C_count-1]){//columns
-					rotate(a=[0,0,i*(360/BH1750FVIC_count)]){
+					rotate(a=[0,0,i*(360/C_count)]){
 						translate(v=[T_dia_in/2,0,10]){
 								cylinder(r=C_dia_in/2+C_thickness,h=T_height-10);
 						}
