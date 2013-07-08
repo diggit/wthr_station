@@ -24,7 +24,7 @@ function initialize() {
 
 }
 function extended_init(){
-	startUpdating();
-	initialize()
+	header_begin();
+	initialize();
 }
 window.onload = extended_init;
