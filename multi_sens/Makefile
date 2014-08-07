@@ -1,40 +1,39 @@
-PRG            = main
-OBJ            = main.o
-MCU_TARGET     = atmega8
-OPTIMIZE       = -O2
+AVR_CC			= avr-gcc
+AVR_LD			= $(AVR_CC)
+AVR_OBJCOPY		= avr-objcopy
+AVR_SIZE		= avr-size
+MCU			= atmega8
+CFLAGS			= -c -Wall -g -$(OPTIMIZE) -mmcu=$(MCU) -fdata-sections -ffunction-sections
+OPTIMIZE		= O2
+LDFLAGS			= -Wl,--gc-sections
+TARGET			= main
 
-# You should not have to change anything below here.
+OBJECTS = $(patsubst %.c, %.o, $(wildcard *.c))
 
-CC             = avr-gcc
+all: $(TARGET).hex
 
-# Override is only needed by avr-lib build system.
+$(TARGET):  $(OBJECTS)
+	$(AVR_LD) -o $@.elf $^ $(LDFLAGS) -mmcu=$(MCU)
 
-override CFLAGS = -g -Wall $(OPTIMIZE) -ffunction-sections -mmcu=$(MCU_TARGET) $(DEFS) 
+# You don't even need to be explicit here,
+# compiling C files is handled automagically by Make.
 
-# because we would not include unused functions
-LDFLAGS += -Wl,-gc-sections
+%.o: %.c
+	$(AVR_CC) $(CFLAGS) $^ -o $@
 
-OBJCOPY        = avr-objcopy
-OBJDUMP        = avr-objdump
-
-all: hex
-
-$(PRG).elf: $(OBJ)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
+%.hex: $(TARGET) size
+	$(AVR_OBJCOPY) -j .text -j .data -O ihex $<.elf $@
 
 clean:
-	rm -rf *.o $(PRG).elf $(PRG).hex
+	rm -rf *.o $(TARGET).elf $(TARGET).hex
 
-hex:  $(PRG).hex
-
-%.hex: %.elf
-	$(OBJCOPY) -j .text -j .data -O ihex $< $@
-	avr-size $(PRG).hex
+size: $(TARGET)
+	$(AVR_SIZE) -C --mcu=$(MCU) $(TARGET).elf
 
 install: clean load
 
-load: $(PRG).hex
+load: $(TARGET).hex
 	sudo avrdude -p m8 -c usbasp -U flash:w:$< 
 
-loaduino: $(PRG).hex
+loaduino: $(TARGET).hex
 	avrdude -p m8 -c arduino -P /dev/ttyUSB0 -b 19200 -U flash:w:$<

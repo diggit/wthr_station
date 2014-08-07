@@ -48,7 +48,7 @@
 /* 6.000.000 is more or less 8 seconds at the
  * speed configured here
  */
-#define MAX_TIME_COUNT	4000000
+#define MAX_TIME_COUNT	6000000
 //#define MAX_TIME_COUNT (F_CPU>>1)
 ///#define MAX_TIME_COUNT_MORATORY	1600000
 

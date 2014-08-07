@@ -1,21 +1,42 @@
+// Copyright (C) 2014  xorly
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+
 /* Patrik Bachan
  * few routines for operations with temperature sensor board
  * R/W^inv
  * Sensors are (up to 3) AD7410 - 16bit i2c tempterature sensor from Analog Devices (free samples FTW!)
  */
 
-#include "calibrated_loop.c"
+#include "ADT.h"
+#include "calibrated_loop.h"
+#include "inttypes.h"
+#include "misc.h"
+#include "config.h"
 
-#define len(x)  (sizeof(x) / sizeof(x[0]))
+const uint8_t TADDR[]={((ADT_addr_base|0)<<1) , ((ADT_addr_base|1)<<1) , ((ADT_addr_base|2)<<1)}; // 3 sensors
 
-#define addr_base 0b1001000
-const uint8_t TADDR[]={((addr_base|0)<<1) , ((addr_base|1)<<1) , ((addr_base|2)<<1)}; // 3 sensors
-
-int ADTconfig()
+uint8_t ADT_config()
 {
 	uint8_t i;
 	for(i=0;i<len(TADDR);i++)
 	{
+		#ifdef debug
+			uart_print("cfg ADT no:");
+			uart_num(i,1);
+		#endif
 		if(i2c_start(TADDR[i]))
 			return (i+1);//return number of not responding sensor
 		i2c_write(0x03);//config reg
@@ -25,7 +46,7 @@ int ADTconfig()
 	return 0;
 }
 
-void ADTwake()
+void ADT_wake()
 {
 	uint8_t i;
 	//power on sensors
@@ -39,7 +60,7 @@ void ADTwake()
 	
 }
 
-void ADTshutdown()
+void ADT_shutdown()
 {
 	uint8_t i;
 	//shutdown
@@ -53,7 +74,7 @@ void ADTshutdown()
 }
 
 
-int32_t ADTmeasure(uint8_t samples,uint16_t sample_pause_ms)
+int32_t ADT_measure(uint8_t samples,uint16_t sample_pause_ms)
 {
 	int32_t output;
 	int32_t temp=0;

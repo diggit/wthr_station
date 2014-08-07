@@ -11,6 +11,11 @@
 **************************************************************************/
 
 #include <avr/io.h>
+#include <inttypes.h>
+#include <compat/twi.h>
+#include "uart.h"
+#include "misc.h"
+#include "config.h"
 
 /** defines the data direction (reading from I2C device) in i2c_start(),i2c_rep_start() */
 #define I2C_READ    1
@@ -32,7 +37,7 @@ extern void i2c_init(void);
  @param void
  @return none
  */
-extern void i2c_stop(void);
+extern uint8_t i2c_stop(void);
 
 
 /** 
@@ -62,7 +67,7 @@ extern unsigned char i2c_rep_start(unsigned char addr);
  @param    addr address and transfer direction of I2C device
  @return   none
  */
-extern void i2c_start_wait(unsigned char addr);
+extern uint8_t i2c_start_wait(unsigned char addr);
 
  
 /**
