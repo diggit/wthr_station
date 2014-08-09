@@ -16,7 +16,7 @@
 	#define LONGBIT(x) ((unsigned long)0x00000001 << (x))
 
 	//simple NOP, belongs to empty loops etc.
-	#define NOP __asm__("NOP");
+	#define NOP __asm__ __volatile__ ("NOP");
 
 	#define array_length(A) sizeof(A)/sizeof(A[0])
 
@@ -27,7 +27,12 @@
 	char* itoa(uint32_t val, int min);
 	char* itoa_dec(uint32_t val,int min,int decimals);
 	
-	#define Reset_AVR() wdt_enable(WDTO_30MS); while(1) {_NOP;}//little workaround, atmega has no software reset	
+	#ifdef debug 
+	#define Reset_AVR() uart_println("reset called!"); wdt_enable(WDTO_30MS); while(1) {NOP;}//little workaround, atmega has no software reset	
+	#else
+	#define Reset_AVR() wdt_enable(WDTO_30MS); while(1) {NOP;}//little workaround, atmega has no software reset		
+	#endif	
+	
 	
 	#define len(x)  (sizeof(x) / sizeof(x[0]))
 	
