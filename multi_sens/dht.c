@@ -16,42 +16,85 @@
 #include "dht.h"
 
 
-uint8_t DHT_response[5]={0,0,0,0,0};//init with zeros, buffer for DHT11
+uint8_t DHT_response[4]={0,0,0,0};//init with zeros, buffer for DHT11
 
 
-//TODO: rewrite infinite waiting to timed out one
-void DHT(uint8_t bit)
+void DHT_start(uint8_t pinmask)//tell DHT, to send data
 {
-	
-	uint8_t i,j;
+	bit_set(DHTD,pinmask);
+	delay_us(1000*30);
+	bit_clr(DHTD,pinmask);
+	delay_us(4*10);
+}
 
-	//"say hello"
-	DHT_START(1<<bit);
-	//expect ACK
-	while(DHTI&(1<<bit));//wait for pull down
-	
-	while(!(DHTI&(1<<bit)));//wait for pull up
-	while(DHTI&(1<<bit));//wait for pull down
-
-	
-	//recieve 40(1<<bit)s
-	for(j=0;j<5;j++)
+uint8_t DHT_rx_byte(uint8_t *storage,uint8_t pinmask)
+{
+	*storage=0;
+	for(uint8_t i=0;i<8;i++)
 	{
-		DHT_response[j]=0;//erase old value
-		for(i=0;i<8;i++)
+		*storage<<=1;//shift left - prepare for new bit
+		if(wait_timeout(&DHTI,pinmask,255,1))//wait for pull up
+			return 1;
+		delay_us(50);
+		if(DHTI&pinmask)//if still pulled up>longer pulse>LOG1
 		{
-			DHT_response[j]=DHT_response[j]<<1;//shift left - prepare for new (1<<bit)
-			while(!(DHTI&(1<<bit)));//wait for pull up
-			delay_us(50);
-			if(DHTI&(1<<bit))//i still pulled up>longer pulse>LOG1
-			{
-				DHT_response[j]|=1;//set lowest (1<<bit)
-				while(DHTI&(1<<bit));//wait for pull down
-			}
-			//else //already pulled down > shorter pulse > LOG0 , zero is hopefuly there (default)
+			*storage|=1;//set lowest pinmask
+			if(wait_timeout(&DHTI,pinmask,255,0))//wait for pull down
+				return 1;
+		}
+		//else //already pulled down > shorter pulse > LOG0 , zero is hopefuly there (default)
+	}
+	return 0;
+}
+
+uint8_t DHT(uint8_t bit)
+{
+	uint8_t pinmask=(1<<bit);
+	uint8_t checksum_calc=0;
+	uint8_t checksum_rx;
+
+	for (int i = 0; i < DHT_retry_count; ++i)
+	{
+		//"say hello"
+		DHT_start(pinmask);
+		//expect ACK
+		if(wait_timeout(&DHTI,pinmask,255,0))//wait for pull down
+			return 1;
+
+		if(wait_timeout(&DHTI,pinmask,255,1))//wait for pull up
+			return 1;
+		if(wait_timeout(&DHTI,pinmask,255,0))//wait for pull down
+			return 1;
+		
+		//recieve 40 bits (2 bytes humidity, 2 bytes temterature, 1 byte checksum)
+		for(uint8_t i=0;i<4;i++)
+		{
+			if(DHT_rx_byte(&DHT_response[i],pinmask))
+				return 1;
+			checksum_calc+=DHT_response[i];
+		}
+
+		DHT_rx_byte(&checksum_rx,pinmask);
+		//end event check
+		if(wait_timeout(&DHTI,pinmask,255,1))//wait for pull up
+			return 1;
+
+		#ifdef debug
+		uart_print("DHT checksum ");
+		#endif
+		if(checksum_rx==checksum_calc)
+		{
+			#ifdef debug
+			uart_println("OK");
+			#endif
+			return 0;
+		}
+		else
+		{
+			#ifdef debug
+			uart_println("FAIL");
+			#endif	
 		}
 	}
-	//link is down
-	//end event check
-	while(!(DHTI&(1<<bit)));//wait for pull up
+	return 1;
 }

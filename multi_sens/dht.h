@@ -22,7 +22,11 @@
 	#include "misc.h"
 	#include "calibrated_loop.h"
 	#include "config.h"
-
+	
+	#ifdef debug
+	#include "uart.h"
+	#endif
+	
 	#ifndef DHTP
 		#error no DHT output register defined (DHTP)
 	#endif
@@ -35,11 +39,18 @@
 		#error no DHT direction register defined (DHTD)
 	#endif
 
-	extern uint8_t DHT_response[5];
+	#ifndef DHT_sensor_pin
+		#error DHT_sensor_pin not define, where is sensor connected?
+	#endif
 
-	#define DHT_START(b) bit_set(DHTD,b); delay_us(1000*30); bit_clr(DHTD,b); delay_us(4*10)//; bit_clr(DHTD,b)//; bit_clr(DHTP,b) //shouldn't be DHTP (pull-up) bit 2 cleared too?
+	#ifndef DHT_retry_count
+		#error DHT_retry_count not define, how many times try to get valid data?
+	#endif
 
-	void DHT(uint8_t bit);
+	extern uint8_t DHT_response[4];
+
+	void DHT_start(uint8_t bit);
+	uint8_t DHT(uint8_t bit);
 
 	
 #endif
