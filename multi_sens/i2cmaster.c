@@ -32,21 +32,7 @@ void i2c_init(void)
 
 }/* i2c_init */
 
-uint8_t wait_timeout(volatile uint8_t *port, uint8_t mask, uint8_t timeout)
-{
-	uint8_t counter;
-	for(counter=0; !(*port & mask) && counter!=timeout;counter++)
-		NOP;
-	if(counter==timeout)
-		return 1;
-	else
-		return 0;
-}
 
-uint8_t wait_timeout_simple(volatile uint8_t *port, uint8_t mask)
-{
-	return wait_timeout(port,mask,255);
-}
 
 uint8_t i2c_wait_for_complete(uint8_t bit_mask)
 {
@@ -60,7 +46,7 @@ uint8_t i2c_wait_for_complete(uint8_t bit_mask)
   Issues a start condition and sends address and transfer direction.
   return 0 = device accessible, 1= failed to access device
 *************************************************************************/
-unsigned char i2c_start(unsigned char address)
+unsigned char i2c_start(unsigned char address, uint8_t rw)
 {
     uint8_t   twst;
 
@@ -75,7 +61,7 @@ unsigned char i2c_start(unsigned char address)
 	if ( (twst != TW_START) && (twst != TW_REP_START)) return 1;
 
 	// send device address
-	TWDR = address;
+	TWDR = (address<<1)|rw;
 	TWCR = (1<<TWINT) | (1<<TWEN);
 
 	// wail until transmission completed and ACK/NACK has been received
@@ -96,7 +82,7 @@ unsigned char i2c_start(unsigned char address)
  
  Input:   address and transfer direction of I2C device
 *************************************************************************/
-uint8_t i2c_start_wait(unsigned char address)
+uint8_t i2c_start_wait(unsigned char address, uint8_t rw)
 {
     uint8_t   twst;
 
@@ -115,7 +101,7 @@ uint8_t i2c_start_wait(unsigned char address)
     	if ( (twst != TW_START) && (twst != TW_REP_START)) continue;
     
     	// send device address
-    	TWDR = address;
+    	TWDR = (address<<1)|rw;
     	TWCR = (1<<TWINT) | (1<<TWEN);
     
     	// wail until transmission completed
@@ -151,9 +137,9 @@ uint8_t i2c_start_wait(unsigned char address)
  Return:  0 device accessible
           1 failed to access device
 *************************************************************************/
-unsigned char i2c_rep_start(unsigned char address)
+unsigned char i2c_rep_start(unsigned char address, uint8_t rw)
 {
-    return i2c_start( address );
+    return i2c_start( address, rw );
 }/* i2c_rep_start */
 
 
@@ -230,3 +216,37 @@ unsigned char i2c_readNak(void)
     return TWDR;
 
 }/* i2c_readNak */
+
+//check if we can operate on i2c bus
+uint8_t i2c_check()
+{
+	uint8_t   twst;
+	TWCR &= ~(1<<TWEN);//reset i2c hardware
+	// send START condition
+	TWCR = (1<<TWINT) | (1<<TWSTA) | (1<<TWEN);
+
+	
+	if (i2c_wait_for_complete(1<<TWINT))
+	{
+		#ifdef debug
+		uart_println("i2c chk start timeout");	
+		#endif
+		return 1;
+	}
+	// check value of TWI Status Register. Mask prescaler bits.
+	twst = TW_STATUS & 0xF8;
+	if ( (twst != TW_START) && (twst != TW_REP_START))
+	{
+		#ifdef debug
+		uart_print("i2c chk bad status: ");
+		uart_num(twst,3);
+		uart_nl();	
+		#endif
+		return 1;
+	}
+
+	i2c_write(0);
+	i2c_stop();
+	return 0;
+
+}

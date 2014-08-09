@@ -16,6 +16,7 @@
 #include "uart.h"
 #include "misc.h"
 #include "config.h"
+#include "calibrated_loop.h"
 
 /** defines the data direction (reading from I2C device) in i2c_start(),i2c_rep_start() */
 #define I2C_READ    1
@@ -23,6 +24,7 @@
 /** defines the data direction (writing to I2C device) in i2c_start(),i2c_rep_start() */
 #define I2C_WRITE   0
 
+extern uint8_t i2c_check();
 
 /**
  @brief initialize the I2C master interace. Need to be called only once 
@@ -47,7 +49,9 @@ extern uint8_t i2c_stop(void);
  @retval   0   device accessible 
  @retval   1   failed to access device 
  */
-extern unsigned char i2c_start(unsigned char addr);
+extern unsigned char i2c_start(unsigned char address, uint8_t rw);
+
+
 
 
 /**
@@ -57,7 +61,7 @@ extern unsigned char i2c_start(unsigned char addr);
  @retval  0 device accessible
  @retval  1 failed to access device
  */
-extern unsigned char i2c_rep_start(unsigned char addr);
+extern uint8_t i2c_start_wait(unsigned char address, uint8_t rw);
 
 
 /**
@@ -67,7 +71,7 @@ extern unsigned char i2c_rep_start(unsigned char addr);
  @param    addr address and transfer direction of I2C device
  @return   none
  */
-extern uint8_t i2c_start_wait(unsigned char addr);
+extern unsigned char i2c_rep_start(unsigned char address, uint8_t rw);
 
  
 /**
