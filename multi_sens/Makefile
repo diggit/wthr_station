@@ -3,7 +3,7 @@ AVR_LD			= $(AVR_CC)
 AVR_OBJCOPY		= avr-objcopy
 AVR_SIZE		= avr-size
 MCU			= atmega8
-CFLAGS			= -c -Wall -g -$(OPTIMIZE) -mmcu=$(MCU) -fdata-sections -ffunction-sections
+CFLAGS			= -std=c99 -c -Wall -g -$(OPTIMIZE) -mmcu=$(MCU) -fdata-sections -ffunction-sections
 OPTIMIZE		= O2
 LDFLAGS			= -Wl,--gc-sections
 TARGET			= main
@@ -36,4 +36,5 @@ load: $(TARGET).hex
 	sudo avrdude -p m8 -c usbasp -U flash:w:$< 
 
 loaduino: $(TARGET).hex
-	avrdude -p m8 -c arduino -P /dev/ttyUSB0 -b 19200 -U flash:w:$<
+	echo "R" > /dev/ttyUSB0
+	avrdude -V -p m8 -c arduino -P /dev/ttyUSB0 -b 19200 -U flash:w:$<
