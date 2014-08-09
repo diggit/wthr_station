@@ -18,7 +18,7 @@ BAUD=19200#baudrate, this must be same at sensor module program!!
 
 UART_TIMEOUT=10#if station doesn't respond in this time, error will be reported
 
-ERR_MSG="Stanice neodpovídá! Kontaktujte správce."#err message when station is not responding, will be on webpage
+ERR_MSG_NORESPONSE="Stanice neodpovídá! Kontaktujte správce."#err message when station is not responding, will be on webpage
 
 from os import uname
 
@@ -125,9 +125,33 @@ check your python installation,
 maybe your distro provides it in sep. package""")
 	exit(1)
 
+def check_status(RCVD):
+	if debug:
+		print("reading status from:",RCVD)
 
+	output=""
+	if(RCVD["I2C"]):
+		output+="ERR i2c bus\\n"
+	if(RCVD["ADT"]):
+		output+="ERR ADT module\\n"
+	if(RCVD["ADT0"]):
+		output+="ERR ADT0 sensor\\n"
+	if(RCVD["ADT1"]):
+		output+="ERR ADT1 sensor\\n"	
+	if(RCVD["ADT2"]):
+		output+="ERR ADT2 sensor\\n"
+	if(RCVD["BMP"]):
+		output+="ERR BMP sensor\\n"
+	if(RCVD["DHT"]):
+		output+="ERR DHT sensor\\n"
+	if(RCVD["GEN"]):
+		output+="ERR GENERAL FAILURE\\n"
 
-def gen_actualjs(T,P,H,stamp):
+	if(len(output)==0):
+		output="OK :)"
+	return output;
+
+def gen_actual_js(T,P,H,stamp,status):
 	if debug:
 		print("writing JS file")
 	js=open(PATH+"actual.js","w")
@@ -136,6 +160,7 @@ def gen_actualjs(T,P,H,stamp):
 	js.write("var last_press= %i;\n" % P)
 	js.write("var last_humi= %i;\n" % H)
 	js.write("var stamp=\""+str(stamp)+"\";\n")
+	js.write("var status=\""+status+"\";\n")
 	js.close()
 	if debug:
 		print("write done!")
@@ -275,9 +300,17 @@ def query_data():
 	if debug:
 		print("requesting data")
 	com.write(bytes("Q",ENC))#send request on data from measurement
-	raw_received=com.readline()#receive them
-	if debug:
-		print("received:",raw_received)
+	
+	raw_received=""
+
+	#skip all incomming messages, not containing  $ and !
+	while not all(x in str(raw_received) for x in ["!","$"]):
+		raw_received=com.readline()#receive them
+		if(len(str(raw_received)[2:-3])==0):
+			raise ConnectionError("No response")
+		if debug:
+			print("read:",str(raw_received)[2:-3],"len:",len(str(raw_received)[2:-3]))
+
 	RCVD=str(raw_received)[2:-3].split(",")#split them into list, crop: " newline
 	com.close()#close our comunication
 	if debug:
@@ -293,15 +326,15 @@ def decode_packet(RCVD):
 		#do some "translations"
 		for i in range(2,len(RCVD)-2,2):#exclude first and last character, character(property) is every second -> step 2
 			#print(RCVD[i])
-			if("T" in RCVD[i]):#if T, temperature value follows
+			if("T" in RCVD[i] and len(RCVD[i])==2):#if T, temperature value follows
 				values[RCVD[i]]=int(RCVD[i+1])/10 #convert it into number and divide by 10 (sensor measures with 0.1 accuracy but float is not used for ease of use)
 				if debug or dry:
 					print("temperature, key:",RCVD[i],"value=",values[RCVD[i]])
-			elif("P" in RCVD[i]):#if P, pressure value follows
+			elif("P" in RCVD[i] and len(RCVD[i])==2):#if P, pressure value follows
 				values[RCVD[i]]=int(RCVD[i+1])/((1-station_altitude/44330)**5.255)/100 #formula from BMP085 datasheet
 				if debug or dry:
 					print("pressure, key:",RCVD[i],"value=",values[RCVD[i]])
-			elif("H" in RCVD[i]):#if H, humdity value follows
+			elif("H" in RCVD[i] and len(RCVD[i])==2):#if H, humdity value follows
 				values[RCVD[i]]=int(RCVD[i+1])#convert it into num, that's all
 				if debug or dry:
 					print("humidity, key:",RCVD[i],"value=",values[RCVD[i]])
@@ -312,7 +345,7 @@ def decode_packet(RCVD):
 	else:
 		if debug:
 			print("wrong response from station, it was:",RCVD)
-		gen_actualjs(0,0,0,ERR_MSG)
+		gen_actual_js(0,0,0,strftime("%d.%m. %Y %H:%M"),ERR_MSG_NORESPONSE)
 		exit(1)
 	return values#dictionary of measured values
 	
@@ -355,8 +388,12 @@ def db_access(values):
 
 
 if ttyS_device!="nodev":
-	packet=query_data()
-	data=decode_packet(packet)
+	try:
+		packet=query_data()
+		data=decode_packet(packet)
+	except ConnectionError as e:
+		print("failed:",e.args[0])
+	
 	
 else:
 	print("No serial IO will be performed")
@@ -374,7 +411,7 @@ if not jsonly:
 
 	#output generation
 	if not dry:
-		gen_actualjs(tmsg[0][1],pmsg[0][1],hmsg[0][1],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16]) # DAY.MONTH. YEAR HOUR:MIN
+		gen_actual_js(tmsg[0][1],pmsg[0][1],hmsg[0][1],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
 	elif debug:
 		print("no js file write!")
 	
@@ -400,7 +437,7 @@ elif(not dry):
 		print("no data received, was right device chosen? (-d nodev ???)")
 		exit(1)
 	stamp=strftime("%d.%m. %Y %H:%M")
-	gen_actualjs(data["T0"],data["P0"],data["H0"],stamp) # DAY.MONTH. YEAR HOUR:MIN
+	gen_actual_js(data["T0"],data["P0"],data["H0"],stamp,check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
 	gen_actual_raw(data["T0"],data["P0"],data["H0"],stamp) # DAY.MONTH. YEAR HOUR:MIN
 else:
 	print("no write done, js file remains untouched (dry ???)")
