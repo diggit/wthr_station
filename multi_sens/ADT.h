@@ -18,9 +18,41 @@
 	#include "config.h"
 	#include <inttypes.h>
 	#include "i2cmaster.h"
+	#include "calibrated_loop.h"
+	#include "state.h"
+	//#include "misc.h"
+	
+	extern uint8_t ADT_status;
 
-	uint8_t	ADT_config();
+	#ifndef ADT_sensor_count
+		#error ADT_sensor_count not defined
+	#endif
+
+	#ifndef ADT_addr_base
+		#error ADT_addr_base not define (address with all address pins grounded)
+	#endif
+
+	#ifndef ADT_samples
+		#error ADT_samples not defined, how many times sample every sensor?
+	#endif
+
+	#ifndef ADT_pause
+		#error ADT_pause not defined, how long delay between sampling?
+	#endif
+
+	#ifndef ADT_minimum_working
+		#error ADT_minimum_working not defined, how many sensors are needed to realiable rowking?
+	#else
+		#if ADT_minimum_working > ADT_sensor_count
+			#error ADT_minimum_working is greater than ADT_sensor_count, nonsense huh?
+		#endif
+	#endif
+
+	extern uint8_t ADT_status;
+
 	void	ADT_wake();
 	void	ADT_shutdown();
-	int32_t ADT_measure(uint8_t samples,uint16_t sample_pause_ms)	;
+	uint8_t ADT_measure(int16_t *storage, uint8_t samples,uint16_t sample_pause_ms);
+	uint8_t ADT_get_working_count();
+	uint8_t ADT_check();
  #endif

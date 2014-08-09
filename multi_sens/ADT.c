@@ -21,38 +21,35 @@
  */
 
 #include "ADT.h"
-#include "calibrated_loop.h"
-#include "inttypes.h"
-#include "misc.h"
-#include "config.h"
 
-const uint8_t TADDR[]={((ADT_addr_base|0)<<1) , ((ADT_addr_base|1)<<1) , ((ADT_addr_base|2)<<1)}; // 3 sensors
 
-uint8_t ADT_config()
-{
-	uint8_t i;
-	for(i=0;i<len(TADDR);i++)
-	{
-		#ifdef debug
-			uart_print("cfg ADT no:");
-			uart_num(i,1);
-		#endif
-		if(i2c_start(TADDR[i]))
-			return (i+1);//return number of not responding sensor
-		i2c_write(0x03);//config reg
-		i2c_write(0b10000000);//set into high res. mode and shutdown
-		i2c_stop();
-	}
-	return 0;
-}
+uint8_t ADT_status=0xff;
+//BIT 0 ~ ADT0 status
+//BIT 1 ~ ADT1 status
+//...
+//1 ~ ERROR, NOT WORKING
+//0 ~ OK, WORKING
 
 void ADT_wake()
 {
 	uint8_t i;
 	//power on sensors
-	for(i=0;i<len(TADDR);i++)
+	for(i=0;i<ADT_sensor_count;i++)
 	{
-		i2c_start(TADDR[i]);
+		#ifdef debug
+		uart_print("ADT wake:");
+		uart_num(i,1);
+		uart_nl();
+		#endif		
+		if(bit_get(ADT_status,BIT(i)))
+		{
+			#ifdef debug
+			uart_println("SKIP");
+			#endif		
+			continue;//jump to next sensor, this one is broken
+		}
+
+		i2c_start(ADT_addr_base|i,I2C_WRITE);
 		i2c_write(0x03);//config reg
 		i2c_write(0b10000000);
 		i2c_stop();
@@ -64,58 +61,157 @@ void ADT_shutdown()
 {
 	uint8_t i;
 	//shutdown
-	for(i=0;i<len(TADDR);i++)
+	for(i=0;i<ADT_sensor_count;i++)
 	{
-		i2c_start(TADDR[i]);
+		#ifdef debug
+		uart_print("ADT shutdown:");
+		uart_num(i,1);
+		uart_nl();
+		#endif		
+		if(bit_get(ADT_status,BIT(i)))
+		{
+			#ifdef debug
+			uart_println("SKIP");
+			#endif
+			continue;
+		}
+
+		i2c_start(ADT_addr_base|i,I2C_WRITE);
 		i2c_write(0x03);//config reg
-		i2c_write(0b11100000);//start measurement
+		i2c_write(0b11100000);//7: 16bit res, 6~5: shutdown mode
 		i2c_stop();
 	}
+		#ifdef debug
+		uart_println("ADTs off");
+		#endif
+
 }
 
 
-int32_t ADT_measure(uint8_t samples,uint16_t sample_pause_ms)
+uint8_t ADT_measure(int16_t *storage, uint8_t samples,uint16_t sample_pause_ms)
 {
-	int32_t output;
+	ADT_wake();
+
 	int32_t temp=0;
 	
-	uint8_t i,j;
+	uint8_t sensor_num,sample_num;
+	
 	int8_t Htemp;
 	int16_t Ltemp;
 
 	
 	//delay fow proper wakeup
 	
-	delay_us(300000);//decrease?
+	delay_ms(300);//because 1st conversion after wake is fast and inaccurate,
+	//nomal conversion tooks 240ms
 	
-	for(j=0;samples>j;j++)//take N samples
+	for(sample_num=0;sample_num<samples;sample_num++)//take N samples
 	{
 	
 		
-		for(i=0;i<len(TADDR);i++)
+		for(sensor_num=0;sensor_num<ADT_sensor_count;sensor_num++)
 		{
-			i2c_start(TADDR[i]|1);//start reading
-			Htemp=i2c_readAck();//recieve degrees
-			Ltemp=i2c_readNak();//recieve decimals (hexadecimals correctly), align them on lower bits
-			i2c_stop();
-			temp+=(Htemp<<8)+Ltemp;
-#ifdef debug
-			uart_num((Htemp<<8)+Ltemp,4);
-			uart_putc('\n');
-#endif
+
+			#ifdef debug
+			uart_print("ADT measure:");
+			uart_num(sensor_num,1);
+			uart_nl();
+			#endif	
+
+			if(!bit_get(ADT_status,BIT(sensor_num)))
+			{
+				if(i2c_start(ADT_addr_base|sensor_num,I2C_READ))//start reading
+					return 1;
+				Htemp=i2c_readAck();//recieve degrees
+				Ltemp=i2c_readNak();//recieve decimals (hexadecimals correctly), align them on lower bits
+				i2c_stop();
+
+				temp+=(Htemp<<8)+Ltemp;
+				
+				#ifdef debug
+				uart_num((Htemp<<8)+Ltemp,4);
+				uart_putc('\n');
+				#endif
+			}
+			#ifdef debug
+			else
+				uart_println("SKIP");
+			#endif
 
 		}
-		delay_us((uint32_t)1000*sample_pause_ms);
+		delay_ms(sample_pause_ms); //wait for another conversion, tooks 240ms at minimum
 	}
 	
 	
 
-	output=temp/(samples*len(TADDR));//calculate average value (still not converted)
+	temp=temp/(samples*ADT_get_working_count());//calculate average value (still not converted)
 	//there is now sth. like 3089 (24.1°C)
 
-	output*=10;//without this, we will lose decimal information in next step
-	output/=128;//convert into value
+	temp*=10;//without this, we will lose decimal information in next step
+	temp/=128;//convert into value
 	//now it is 241
+
+	ADT_shutdown();
 	
-	return output;
+	*storage=temp;
+
+	//all measurements done
+	
+	return 0;
+}
+
+//return count of working sensors
+uint8_t ADT_get_working_count()
+{
+	uint8_t sum=0;
+	uint8_t index;
+	for(index=0;index<ADT_sensor_count;index++)
+	{		
+		if(!bit_get(ADT_status,BIT(index)))
+		{
+			sum++;
+		}
+	}
+
+	return sum;
+}
+
+uint8_t ADT_check()
+{
+	uint8_t i;
+	for(i=0;i<ADT_sensor_count;i++)
+	{
+		#ifdef debug
+		uart_print("ADT chk: ");
+		uart_num(i,1);
+		#endif	
+		if(i2c_start(ADT_addr_base|i,I2C_READ))
+		{
+			bit_set(ADT_status,BIT(i));//set Ith bit as sign of sensor error
+			#ifdef debug
+				uart_println(" FAIL");
+			#endif
+		}
+		else
+		{
+			i2c_read(0);
+			bit_clr(ADT_status,BIT(i));//set as working
+			#ifdef debug
+			uart_println(" OK");
+			#endif
+		}
+		i2c_stop();
+		
+	}
+
+	if(ADT_minimum_working > ADT_get_working_count())
+	{
+		error_flags.ADT=1;
+		return 1;
+	}
+	else
+	{	
+		error_flags.ADT=0;
+		return 0;
+	}
 }
