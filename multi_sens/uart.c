@@ -22,7 +22,7 @@
 	unsigned char uart_getc( void )
 	{
 		while ( !(UCSRA & (1<<RXC)) )
-			__NOP;
+			NOP;
 		return UDR;
 	}
 
@@ -40,8 +40,13 @@
 	void uart_putc(char data)
 	{
 		while ( !( UCSRA & (1<<UDRE)) )
-			__NOP;
+			NOP;
 		UDR = data;
+	}
+
+	void uart_nl()
+	{
+		uart_putc('\n');
 	}
 
 	//send string, (BTW string is array of chars, if you don't know...)
@@ -57,7 +62,7 @@
 			uart_putc(endchar);
 	}
 
-	void uart_peint(char *str)//accepts address on array beginning
+	void uart_print(char *str)//accepts address on array beginning
 	{
 		uart_puts_endchar( str,0);
 	}
@@ -76,13 +81,14 @@ void uart_init(void)
 	UBRRH = (uint8_t)ubrr_val>>8;
 
 	//enable RX nad TX, conditionaly
-#if (defined UART_RX && defined UART_TX)
-	UCSRB = (1<<TXEN) | (1<<RXEN);
-#elif defined UART_TX
-	UCSRB = (1<<TXEN);
-#elif defined UART_RX
-	UCSRB = (1<<RXEN);
-	#ifdef UA_RX_INT_EN
+
+#ifdef UART_TX
+	UCSRB |= (1<<TXEN);
+#endif
+
+#ifdef UART_RX
+	UCSRB |= (1<<RXEN);
+	#ifdef UART_RX_INT
 		UCSRB |= (1<<RXCIE); //enable RX interrupt
 	#endif
 #endif

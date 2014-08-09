@@ -20,6 +20,7 @@
 	#include <avr/io.h>
 	#include <inttypes.h>
 	#include "config.h"
+	#include "misc.h"
 
 	#ifndef FOSC
 	#	error No CPU frequency defined (FOSC)
@@ -31,25 +32,19 @@
 
 	#define ubrr_val (FOSC/(16*BAUD)-1)
 
-	#define __NOP __asm__ volatile("NOP")
-
-
-
 	#if (defined UART_RX || defined UART_TX)
 	#	ifdef UART_RX
 			unsigned char uart_getc( void );
 			void uart_flush(void);
-	#		ifndef UA_RX_INT_EN
-	#			define UA_RX_INT_EN 0
-	#		endif
 	#	endif
 
 	#	ifdef UART_TX
 	#		include "misc.h" //tools for number conversion to array of chars
 			void uart_putc(char data );
+			void uart_nl();
+			void uart_puts_endchar(char *str,char endchar);
 			void uart_print(char *str);
 			void uart_println(char *str);
-			void uart_puts_endchar(char *str,char endchar);
 	#		define uart_num(V,M) uart_print(itoa(V,M))
 	#	endif
 	#else
