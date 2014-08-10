@@ -22,6 +22,9 @@
 #include "ADT.h"//library for extended temperature board
 #include "BMP.h" 
 
+#define LED_CFG() DDRC|=1
+#define LED_ON() PORTC|=1
+#define LED_OFF() PORTC &=~1
 
 
 //TODO: move to header file
@@ -120,6 +123,11 @@ uint8_t hw_check()
 
 int main (void)
 {
+	DDRB=0;
+	DDRD=0;
+	DDRC=0;
+	LED_CFG();
+	LED_ON();
 	uart_init();//init UART
 	uart_print("booted...\ncompiled: ");
 	uart_println(STRING_VERSION);
@@ -145,9 +153,9 @@ int main (void)
 	#ifdef debug
 	uart_println("entering infinite sleep loop...");
 	#endif
-
 	while(1)//sleep it after interrupt again and again
 	{
+		LED_OFF();
 		#ifdef debug
 		uart_println("sleeping");//debug
 		#endif
@@ -162,6 +170,7 @@ int main (void)
 
 ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will be in idle mode, (maybe sleeping - should be implemented)
 {
+	LED_ON();
 	#ifdef debug
 		uart_println("woken");
 	#endif
