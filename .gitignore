@@ -1,2 +1,3 @@
 designs/*.gcode
 multi_sens/*.o
+web_app/charts/*.png
