@@ -19,6 +19,8 @@ function load_values()
 			document.getElementById("Apress").innerHTML=splittered[1]+" hPa";
 			document.getElementById("Ahumi").innerHTML=splittered[2]+" %";
 			document.getElementById("stamp").innerHTML="změřeno "+splittered[3]+", aktualizováno "+time.getHours()+":"+leftPad(time.getMinutes(),2)+":"+leftPad(time.getSeconds(),2);
+			document.getElementById("status").innerHTML=splittered[4];
+			document.getElementById("status_extended").innerHTML=splittered[5];
 			notify("stamp")
 		}
 	}
@@ -37,8 +39,8 @@ function header_begin()
 function notify(el)
 {
 	var elem = document.getElementById(el);
-	elem.setAttribute("style","background-color: #eee; transition: background 0.3s linear;");
-	setTimeout(function() {elem.setAttribute("style","background-color: #ccc;  transition: background 0.3s linear;");;},300);
+	elem.setAttribute("style","border-color: #00c; transition: border-color 0.3s linear;");
+	setTimeout(function() {elem.setAttribute("style","border-color: #f90;  transition: border-color 0.3s linear;");;},300);
 }
 
 function leftPad(number, targetLength) {
