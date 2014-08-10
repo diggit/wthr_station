@@ -125,47 +125,47 @@ check your python installation,
 maybe your distro provides it in sep. package""")
 	exit(1)
 
+def gen_status_msg(condition, text):
+	if(condition):
+		return "<span class=\"status_fail\">"+text+": FAILED</span><br>"
+	else:
+		return "<span class=\"status_ok\">"+text+": OK</span><br>"
+
 def check_status(RCVD):
 	if debug:
 		print("reading status from:",RCVD)
 
 	output=""
-	if(RCVD["I2C"]):
-		output+="ERR i2c bus\\n"
-	if(RCVD["ADT"]):
-		output+="ERR ADT module\\n"
-	if(RCVD["ADT0"]):
-		output+="ERR ADT0 sensor\\n"
-	if(RCVD["ADT1"]):
-		output+="ERR ADT1 sensor\\n"	
-	if(RCVD["ADT2"]):
-		output+="ERR ADT2 sensor\\n"
-	if(RCVD["BMP"]):
-		output+="ERR BMP sensor\\n"
-	if(RCVD["DHT"]):
-		output+="ERR DHT sensor\\n"
-	if(RCVD["GEN"]):
-		output+="ERR GENERAL FAILURE\\n"
+	output+=gen_status_msg(RCVD["I2C"],"i2c BUS")
+	output+=gen_status_msg(RCVD["ADT"],"ADT module")
+	output+=gen_status_msg(RCVD["ADT0"],"ADT0 sensor")
+	output+=gen_status_msg(RCVD["ADT1"],"ADT1 sensor")
+	output+=gen_status_msg(RCVD["ADT2"],"ADT2 sensor")
+	output+=gen_status_msg(RCVD["BMP"],"BMP sensor")
+	output+=gen_status_msg(RCVD["DHT"],"DHT sensor")
+	output+=gen_status_msg(RCVD["GEN"],"GENERAL status")
 
-	if(len(output)==0):
-		output="OK :)"
+	if("status_fail" in output):
+		output="<span class=\"status_fail\">ERR, contact admin!</span>\n"+output
+	else:
+		output="<span class=\"status_ok\">OK</span>\n"+output
 	return output;
 
-def gen_actual_js(T,P,H,stamp,status):
-	if debug:
-		print("writing JS file")
-	js=open(PATH+"actual.js","w")
-	js.write("//dynamicaly generated, do not edit\n")
-	js.write("var last_temp= %0.2f;\n" % T)
-	js.write("var last_press= %i;\n" % P)
-	js.write("var last_humi= %i;\n" % H)
-	js.write("var stamp=\""+str(stamp)+"\";\n")
-	js.write("var status=\""+status+"\";\n")
-	js.close()
-	if debug:
-		print("write done!")
+# def gen_actual_js(T,P,H,stamp,status):
+# 	if debug:
+# 		print("writing JS file")
+# 	js=open(PATH+"actual.js","w")
+# 	js.write("//dynamicaly generated, do not edit\n")
+# 	js.write("var last_temp= %0.2f;\n" % T)
+# 	js.write("var last_press= %i;\n" % P)
+# 	js.write("var last_humi= %i;\n" % H)
+# 	js.write("var stamp=\""+str(stamp)+"\";\n")
+# 	js.write("var status=\""+status+"\";\n")
+# 	js.close()
+# 	if debug:
+# 		print("write done!")
 
-def gen_actual_raw(T,P,H,stamp):
+def gen_actual_raw(T,P,H,stamp,status):
 	if debug:
 		print("writing raw file")
 	js=open(PATH+"actual","w")
@@ -173,6 +173,7 @@ def gen_actual_raw(T,P,H,stamp):
 	js.write("%i\n" % P)
 	js.write("%i\n" % H)
 	js.write(str(stamp)+"\n")
+	js.write(status+"\n")
 	js.close()
 	if debug:
 		print("write done!")
@@ -264,9 +265,14 @@ def gen_image(raw,Iname,Lcolor):
 		xticks(x, my_xticks,rotation=90)
 		ax = subplot(111)
 		ax.tick_params(labelright=True)#Y labels on both sides (we've got wide chart)
-		ax.yaxis.grid(True)#only Y axis grid
+		ax.yaxis.grid(True,color='white')#only Y axis grid
 		y_formatter = matplotlib.ticker.ScalarFormatter(useOffset=False)
 		ax.yaxis.set_major_formatter(y_formatter)
+		for n in ["bottom","top","left","right"]:
+			ax.spines[n].set_color('white')
+		ax.tick_params(axis='y', colors='white')
+		ax.tick_params(axis='x', colors='white')
+
 		plot(x,y,color=Lcolor,zorder=10)
 		subplots_adjust(bottom=0.3,left=0.07,right=1-0.07)
 		
@@ -280,7 +286,7 @@ def gen_image(raw,Iname,Lcolor):
 			#print(allXlist[X])
 		
 		for T in time_jump:
-			ax.axvspan(T,T+1,edgecolor="white",facecolor="red",alpha=0.4)
+			ax.axvspan(T,T+1,edgecolor="white",facecolor="#FF6600",alpha=0.2)
 
 		savefig(PATH+"charts/"+Iname+".png",dpi=300,bottom=20,transparent=True)
 		savefig(PATH+"charts/"+Iname+"-lowres.png",dpi=100,bottom=20,transparent=True)
@@ -345,7 +351,8 @@ def decode_packet(RCVD):
 	else:
 		if debug:
 			print("wrong response from station, it was:",RCVD)
-		gen_actual_js(0,0,0,strftime("%d.%m. %Y %H:%M"),ERR_MSG_NORESPONSE)
+		#gen_actual_js(0,0,0,strftime("%d.%m. %Y %H:%M"),ERR_MSG_NORESPONSE)
+		gen_actual_raw(0,0,0,strftime("%d.%m. %Y %H:%M"),ERR_MSG_NORESPONSE)
 		exit(1)
 	return values#dictionary of measured values
 	
@@ -411,7 +418,8 @@ if not jsonly:
 
 	#output generation
 	if not dry:
-		gen_actual_js(tmsg[0][1],pmsg[0][1],hmsg[0][1],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
+		#gen_actual_js(tmsg[0][1],pmsg[0][1],hmsg[0][1],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
+		gen_actual_raw(tmsg[0][1],pmsg[0][1],hmsg[0][1],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
 	elif debug:
 		print("no js file write!")
 	
@@ -428,17 +436,17 @@ if not jsonly:
 			print("ERROR, you must install matplotlib first, visit: http://matplotlib.org/\n or clone and build from GIT: https://github.com/matplotlib/matplotlib")
 			exit(1)
 
-		gen_image(tmsg,"temp","green")
-		gen_image(pmsg,"pres","red")
-		gen_image(hmsg,"humi","blue")
+		gen_image(tmsg,"temp","#00FF00")
+		gen_image(pmsg,"pres","#FFFF00")
+		gen_image(hmsg,"humi","#33CCFF")
 
 elif(not dry):
 	if not data:
 		print("no data received, was right device chosen? (-d nodev ???)")
 		exit(1)
 	stamp=strftime("%d.%m. %Y %H:%M")
-	gen_actual_js(data["T0"],data["P0"],data["H0"],stamp,check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
-	gen_actual_raw(data["T0"],data["P0"],data["H0"],stamp) # DAY.MONTH. YEAR HOUR:MIN
+	#gen_actual_js(data["T0"],data["P0"],data["H0"],stamp,check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
+	gen_actual_raw(data["T0"],data["P0"],data["H0"],stamp,check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
 else:
 	print("no write done, js file remains untouched (dry ???)")
 
