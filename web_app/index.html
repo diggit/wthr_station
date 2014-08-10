@@ -4,51 +4,60 @@
 		<link rel="stylesheet" type="text/css" href="style.css">	
 		<title>weather station test</title>
 		<meta http-equiv="content-type" content="text/html; charset=utf-8">
+		<script src="status.js"></script>
 		<script src="reload.js"></script>
 		<script src="reload_charts.js"></script>
+		<script type="text/javascript">
+			function AdjustHeight() {
+			var height = document.getElementById("header").offsetHeight;
+			document.getElementById("content").style.marginTop = height + 'px';
+			}    
+		</script>
 		<script type="text/javascript">
 			window.onload = begin;
 			function begin () {
 				header_begin();
 				charts_begin();
+				AdjustHeight();
 			}
 		</script>
+		
 	</head>
 	<body>
 		<div id="container">
 			<div id="header">
 				<div id="actual">
-					<span id="Atemp">0</span>
-					<span id="Apress">0</span>
-					<span id="Ahumi">0</span>
-					<div id="stamp">-.-</div>
+					<span id="Atemp" class="bordered">0</span>
+					<span id="Apress" class="bordered">0</span>
+					<span id="Ahumi" class="bordered">0</span>
+					<div id="stamp" class="bordered">-.-</div>
+					<div id="status_container" class="bordered" onclick="toggle_visibility('status_extended')">&#9660 Status: <span id="status">unknown</span> &#9660<div id="status_extended">no messages</div></div>
 				</div>
 				<div id="menu">
-					<a href="/index.html">Aktuální hodnoty</a><a href="/about.html">O projektu</a><a href="/me.html">Kontakt</a><a></a>
+					<a href="/index.html">Aktuální hodnoty</a><a href="/about.html">O projektu</a><a href="/me.html">Kontakt</a><a id="dummy"></a>
 				</div>
 			</div>
 
-			<div id="spacer"><!-- this is bad --></div>
 			<div id="content">
 				<div id="charts">
 					<div id="temperature">
-						<a>Teplota posledních dnech v °C</a>
+						<a class="text">vývoj teploty (°C)</a>
 						<img id="temp_img" src="charts/temp-lowres.png" alt="tempterature history">
 					</div>
 					<hr>
 					<div id="pressure">
-						<a>Tlak v posledních dnech v hPa</a>
+						<a class="text">vývoj tlaku (hPa)</a>
 						<img id="pres_img" src="charts/pres-lowres.png" alt="atmospheric pressure history">
 					</div>
 					<hr>
 					<div id="humidity">
-						<a>Relativní vlhkost v posledních dnech v %</a>
+						<a class="text">vývoj vlhkosti (%)</a>
 						<img id="humi_img" src="charts/humi-lowres.png" alt="relative humidity history">
 					</div>
 					<hr>
 				</div>
 				<div id="note">
-					<span>Data z meteostanice jsou stahována každou minutu a zobrazována v hlavičce. Grafy jsou aktualizovány každých 10 minut.
+					<span>Informace v hlavičce jsou obnovovány každou minutu. Grafy jsou aktualizovány každých 10 minut.
 					Červeně označené oblasti indikují vynechaná měření. </span>
 				</div>
 			</div>

@@ -1,28 +1,41 @@
-<!DOCTYPE html>
-<html>
-	<head>
+<head>
 		<link rel="stylesheet" type="text/css" href="style.css">	
 		<title>weather station test</title>
 		<meta http-equiv="content-type" content="text/html; charset=utf-8">
+		<script src="status.js"></script>
 		<script src="reload.js"></script>
-		<script src="http://maps.googleapis.com/maps/api/js?sensor=false"></script>
-		<script src="map.js"></script>
+		<script src="reload_charts.js"></script>
+		<script type="text/javascript">
+			function AdjustHeight() {
+			var height = document.getElementById("header").offsetHeight;
+			document.getElementById("content").style.marginTop = height + 'px';
+			}    
+		</script>
+		<script type="text/javascript">
+			window.onload = begin;
+			function begin () {
+				header_begin();
+				charts_begin();
+				AdjustHeight();
+			}
+		</script>
+		
 	</head>
 	<body>
 		<div id="container">
 			<div id="header">
 				<div id="actual">
-					<span id="Atemp">0</span>
-					<span id="Apress">0</span>
-					<span id="Ahumi">0</span>
-					<div id="stamp">-.-</div>
+					<span id="Atemp" class="bordered">0</span>
+					<span id="Apress" class="bordered">0</span>
+					<span id="Ahumi" class="bordered">0</span>
+					<div id="stamp" class="bordered">-.-</div>
+					<div id="status_container" class="bordered" onclick="toggle_visibility('status_extended')">&#9660 Status: <span id="status">unknown</span> &#9660<div id="status_extended">no messages</div></div>
 				</div>
 				<div id="menu">
-					<a href="/index.html">Aktuální hodnoty</a><a href="/about.html">O projektu</a><a href="/me.html">Kontakt</a><a></a>
+					<a href="/index.html">Aktuální hodnoty</a><a href="/about.html">O projektu</a><a href="/me.html">Kontakt</a><a id="dummy"></a>
 				</div>
 			</div>
 
-			<div id="spacer"><!-- this is bad --></div>
 			<div id="content">
 				<div id="images">
 						<a class="clickbox">
@@ -109,24 +122,24 @@
 				</div>
 
 
-				<div id="text">
-					<h2>Proč vlastne vznikla?</h2>
-					<p>Projekt meteorologické stanice vznikl v roce 2013 jako maturitní práce. Při samotném výběru téma jsem dlouho přemýšlel do jakého projektu se pustit. Tvořit něco jen kvůli maturitě mi připadalo zbytečné. Myšlenka výroby meteostanice se vynořila z již dříveších návrhů.</p>
+				<div class="text" id="about">
+					<h2>Proč vlastně vznikla?</h2>
+					<p>Projekt meteorologické stanice vznikl v roce 2013 jako maturitní práce. Při samotném výběru tématu jsem dlouho přemýšlel do jakého projektu se pustit. Tvořit něco jen kvůli maturitě se mi nechtělo. Myšlenka výroby meteostanice se vynořila z již dřívějších návrhů.</p>
 					
 					<h3>Vývoj</h3>
 					<p>Hned jsem začal s návrhem elektroniky a opláštění. Jelikož je celý projekt vedený se silnou opensource myšlenkou, rozhodl jsem se i pro opensource software pro návh elektronických zařízení a plošných spojů <a href="http://www.kicad-pcb.org/">KiCAD</a>. Stejnou cestou se ubíral i vývoj opláštění stanice, tady jsem použil <a href="http://www.openscad.org/">OpenScad</a>.</p>
 					
 					<h3>Metriály</h3>
-					<p>Některé elektronické součástky pro stvabu pocházejí ze mých zásob, jiné zase z: GMe, ebay, AD. Deska pošných spojů je jednoduchá a lze ji vyrobit i v domácích podmínkách. Materiál opláštění je ABS plast a je vytisknuté na <a title="RepRap Mendel Průša (i2)"><i>3D tiskárně</i></a>. J navržena modulárně a umožňuje tedy jednoduché rozšiřování a upravování.</p>
+					<p>Některé elektronické součástky pro stvabu pocházejí ze mých zásob, jiné zase z: GMe, ebay, AD. Deska plošných spojů je jednoduchá a lze ji vyrobit i v domácích podmínkách. Materiál opláštění je ABS plast a je vytisknuté na <a title="RepRap Mendel Průša (i2)"><i>3D tiskárně</i></a>. Opláštění je navrženo modulárně a umožňuje tedy jednoduché rozšiřování a upravování.</p>
 					
 					<h3>Vybavení stanice</h3>
-					<p>Ve stanici jsou <a href="#strecha" title="podpořte mě...">(zatím)</a> všechny senzory a mikrokontrolér. Všechny senzory jsou již s digitálním výstupem a výstup z nich lze tedy snadno zpracovávat. Pro měření tlaku slouží <a href="http://www.bosch-sensortec.com/homepage/products_3/environmental_sensors_1/bmp085_1/bmp085">BMP085</a>. Relativní vlhkost meří <a href="http://www.elektronovinky.cz/soucastky/sikovny-senzor-teploty-vlhkosti-dht11">DHT11</a>. Teplotu již nyní měří trojice <a href="http://www.analog.com/en/mems-sensors/digital-temperature-sensors/adt7410/products/product.html">ADT7410</a>. Data z těchto senzorů zpracovává mikrokontrolér <a href="http://www.atmel.com/devices/atmega8.aspx">ATmega8</a>. Na příkaz ze serveru se probudí, zapne všechny senzory a změří aktuální hodnoty. Jakmile má data ze všech senzorů, zpracuje je a posílá zpět na server. Poté přechází zpět do úsporného stavu. Je tak omezeno vlastní zahřívání stanice a spotřeba.</p>
+					<p>Ve stanici jsou <a href="#strecha" title="podpořte mě...">(zatím)</a> všechny senzory a mikrokontrolér. Senzory jsou již s digitálním výstupem a lze jej tedy snadno zpracovávat. Pro měření tlaku slouží <a href="http://www.bosch-sensortec.com/homepage/products_3/environmental_sensors_1/bmp085_1/bmp085">BMP085</a>. Relativní vlhkost meří <a href="http://www.elektronovinky.cz/soucastky/sikovny-senzor-teploty-vlhkosti-dht11">DHT11</a>. Teplotu již nyní měří trojice <a href="http://www.analog.com/en/mems-sensors/digital-temperature-sensors/adt7410/products/product.html">ADT7410</a>. Data z těchto senzorů zpracovává mikrokontrolér <a href="http://www.atmel.com/devices/atmega8.aspx">ATmega8</a>. Na příkaz ze serveru se probudí, zapne všechny senzory a změří aktuální hodnoty. Jakmile má data ze všech senzorů, zpracuje je a posílá zpět na server. Poté přechází zpět do úsporného stavu. Je tak omezeno vlastní zahřívání stanice a spotřeba.</p>
 
 					<h3>Zpracování hodnot</h3>
-					<p>Jakmile server obrží data, začne je zpracovávat. Pokud mají sloužit pouze pro hlavičku stránky, nejsou uloženy a je aktualizována jen hlavička. Pokud jsou však tyto hodnoty určeny pro grafy, jsou hodnoty nejdříve uloženy do databáze. (7.7 2013 bylo v databázi již 20500 záznamů) Z hodnot v databázi jsou následně vytvořeny grafy. K aktualizaci hlavičky stránky dochází každou minutu, avšak grafy jsou překresleny jednou za 10 minut. Důvodem je poměrně vysoká náročnost na procesor serveru.</p>
+					<p>Jakmile server obrží data, začne je zpracovávat. Pokud mají sloužit pouze pro hlavičku stránky, nejsou uloženy do databáze a je aktualizována jen hlavička. Pokud jsou však tyto hodnoty určeny pro grafy, jsou hodnoty nejdříve uloženy do databáze. (10.8 2014 bylo v databázi již 72561 záznamů) Z hodnot v databázi jsou následně vytvořeny grafy. K aktualizaci hlavičky stránky dochází každou minutu, avšak grafy jsou překresleny jednou za 10 minut. Důvodem je poměrně vysoká náročnost na procesor serveru.</p>
 
 					<h3>Shrnutí</h3>
-					<p>V aktuálním stavu měří stanice teplotu okolního vzduchu, atmosférický tlak a relativní vlhkost vzduchu. Hodnoty ze senzorů nemají velkou odchylku od jiných domácích stanic (čísla nemám kvůlu nedostatku dat ke srovnání). <a href="me.html">Pomozte mi s ověřením měřených hodnot porovnáním s vašimi, ozvěte se.</a> Hodnoty získané ze stanice nemají zaručenou přesnost a proto na sebe nepřebírám na sebe zodpovědnost za jejich přesnost. Problém v přestnosti meření může způsobovat netypické proudění vzduchu kolem domu a také malá izolace od slunečních paprsků. </p>
+					<p>V aktuálním stavu měří stanice teplotu okolního vzduchu, atmosférický tlak a relativní vlhkost vzduchu. Hodnoty ze senzorů nemají velkou odchylku od jiných domácích stanic (čísla nemám kvůlu nedostatku dat ke srovnání). <a href="me.html">Pomozte mi s ověřením měřených hodnot porovnáním s vašimi, ozvěte se.</a> Hodnoty získané ze stanice nemají zaručenou přesnost a proto na sebe nepřebírám na sebe zodpovědnost za jejich přesnost. Problém v přesnosti meření může způsobovat netypické proudění vzduchu kolem domu a také malá izolace od slunečních paprsků. </p>
 
 					<h3>Materiály</h3>
 					<p>Všechny modely, schémata a zdrojové kódy jsou <a href="https://github.com/diggit/wthr_station">zde na githubu</a>.</p>
