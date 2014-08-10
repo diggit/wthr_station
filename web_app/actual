@@ -1,4 +1,6 @@
-29.8
-1018
-33
-10.08. 2014 00:11
+29.5
+1010
+35
+10.08. 2014 23:27
+<span class="status_ok">OK</span>
+<span class="status_ok">i2c BUS: OK</span><br><span class="status_ok">ADT module: OK</span><br><span class="status_ok">ADT0 sensor: OK</span><br><span class="status_ok">ADT1 sensor: OK</span><br><span class="status_ok">ADT2 sensor: OK</span><br><span class="status_ok">BMP sensor: OK</span><br><span class="status_ok">DHT sensor: OK</span><br><span class="status_ok">GENERAL status: OK</span><br>
