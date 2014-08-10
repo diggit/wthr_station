@@ -7,6 +7,7 @@ CFLAGS			= -std=c99 -c -Wall -g -$(OPTIMIZE) -mmcu=$(MCU) -fdata-sections -ffunc
 OPTIMIZE		= O2
 LDFLAGS			= -Wl,--gc-sections
 TARGET			= main
+UART_DEV		= /dev/ttyUSB1
 
 OBJECTS = $(patsubst %.c, %.o, $(wildcard *.c))
 
@@ -36,5 +37,5 @@ load: $(TARGET).hex
 	sudo avrdude -p m8 -c usbasp -U flash:w:$< 
 
 loaduino: $(TARGET).hex
-	echo "R" > /dev/ttyUSB0
-	avrdude -V -p m8 -c arduino -P /dev/ttyUSB0 -b 19200 -U flash:w:$<
+	echo "R" > $(UART_DEV)
+	avrdude -V -p m8 -c arduino -P $(UART_DEV) -b 19200 -U flash:w:$<
