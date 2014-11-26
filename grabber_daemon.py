@@ -22,7 +22,7 @@ ERR_MSG_NORESPONSE="Stanice neodpovídá! Kontaktujte správce."#err message whe
 
 from os import uname
 
-if uname()[1]=='raspberrypi':
+if uname()[-1]=='armv6l':
 	PATH="/home/pi/weather_station/web_app/"
 else:
 	PATH="/home/diggit/dev/dlouhodobka/web_app/"
@@ -52,6 +52,7 @@ dry, dryrun	- No db write will be performed
 if device == 'nodev' no serial IO will be perf.
 nochart		- charts won't be generated (fast run, useful for debug)
 jsonly		- downloads values from station, used only in js file, no chart gererated or db access made
+nodb		- avoid all database access, even read
 
 For more features,visit github and place feature request""")
 	exit(0)
@@ -74,11 +75,12 @@ if "nochart" in argv:
 else:
 	GENchart=True
 
+
 if "jsonly" in argv:
-	jsonly=True
+	GENjs=True
 	GENchart=False
 else:
-	jsonly=False
+	GENjs=False
 
 if debug:
 	print("DEBUG mode enabled!! warn: high verbosity ;-)")
@@ -87,11 +89,26 @@ if debug:
 	print("minute step:",MINUTE_STEP)
 	print("here we go")
 
-elif dry and not jsonly:
-	print("Dry run active, no db write will be done")
+	if dry:
+		print("Dry run active, no db or file write will be done")
+
+if ttyS_device=="nodev":
+	dry=True
+	if debug:
+		print("no device, implicitly enable dry mode (status info ins not in db)!")
+
+if "nodb" in argv:
+	nodbaccess=True
+	GENchart=False
+	if debug:
+		print("no db access allowed, no charts will be generated!")
+else:
+	nodbaccess=False
 
 
-if not jsonly:
+
+
+if not GENjs and not nodbaccess:
 	try: 
 		import oursql
 		if debug:
@@ -179,7 +196,7 @@ def gen_actual_raw(T,P,H,stamp,status):
 		print("write done!")
 
 #program flow continues below funcion defs
-def gen_image(raw,Iname,Lcolor):
+def gen_image(raw,ImgName,LineColor):
 	
 	raw.reverse()
 	
@@ -273,7 +290,7 @@ def gen_image(raw,Iname,Lcolor):
 		ax.tick_params(axis='y', colors='white')
 		ax.tick_params(axis='x', colors='white')
 
-		plot(x,y,color=Lcolor,zorder=10)
+		plot(x,y,color=LineColor,zorder=10)
 		subplots_adjust(bottom=0.3,left=0.07,right=1-0.07)
 		
 		
@@ -288,8 +305,8 @@ def gen_image(raw,Iname,Lcolor):
 		for T in time_jump:
 			ax.axvspan(T,T+1,edgecolor="white",facecolor="#FF6600",alpha=0.2)
 
-		savefig(PATH+"charts/"+Iname+".png",dpi=300,bottom=20,transparent=True)
-		savefig(PATH+"charts/"+Iname+"-lowres.png",dpi=100,bottom=20,transparent=True)
+		savefig(PATH+"charts/"+ImgName+".png",dpi=300,bottom=20,transparent=True)
+		savefig(PATH+"charts/"+ImgName+"-lowres.png",dpi=100,bottom=20,transparent=True)
 	else:
 		if debug:
 			print("leaving, no chart generated")
@@ -351,8 +368,11 @@ def decode_packet(RCVD):
 	else:
 		if debug:
 			print("wrong response from station, it was:",RCVD)
-		#gen_actual_js(0,0,0,strftime("%d.%m. %Y %H:%M"),ERR_MSG_NORESPONSE)
-		gen_actual_raw(0,0,0,strftime("%d.%m. %Y %H:%M"),ERR_MSG_NORESPONSE)
+		##gen_actual_js(0,0,0,strftime("%d.%m. %Y %H:%M"),ERR_MSG_NORESPONSE)
+		if not dry:
+			gen_actual_raw(0,0,0,strftime("%d.%m. %Y %H:%M"),ERR_MSG_NORESPONSE)
+		elif debug:
+			print("ERROR in communication")
 		exit(1)
 	return values#dictionary of measured values
 	
@@ -376,17 +396,24 @@ def db_access(values):
 	if debug:
 		print("requesting data from db")
 
-	curs.execute("SELECT stamp,T0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
-	tmsg=curs.fetchall() #receive this
+	if not dry or GENchart:		
+		curs.execute("SELECT stamp,T0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
+		tmsg=curs.fetchall() #receive this
 
-	curs.execute("SELECT stamp,P0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of P0 (pressure)
-	pmsg=curs.fetchall() #receive this
+		curs.execute("SELECT stamp,P0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of P0 (pressure)
+		pmsg=curs.fetchall() #receive this
 
-	curs.execute("SELECT stamp,H0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of h0 (humidity)
-	hmsg=curs.fetchall() #receive this
+		curs.execute("SELECT stamp,H0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of h0 (humidity)
+		hmsg=curs.fetchall() #receive this
 
-	if debug:
-		print("received")
+		if debug:
+			print("received")
+	elif debug:
+		print("skipping db query, data won't be used")
+		tmsg=0
+		pmsg=0
+		hmsg=0
+
 	curs.close()#destruct cursor
 	conn.close()#disconnect from db
 	if debug:
@@ -394,6 +421,8 @@ def db_access(values):
 	return [tmsg,pmsg,hmsg]
 
 
+
+#here it RUNS!
 if ttyS_device!="nodev":
 	try:
 		packet=query_data()
@@ -407,7 +436,8 @@ else:
 	data={}
 
 
-if not jsonly:
+if GENchart and GENjs:
+
 	dbout=db_access(data)
 
 	tmsg=dbout[0]
