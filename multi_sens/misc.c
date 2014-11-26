@@ -14,6 +14,7 @@ int32_t reduce(int32_t value, uint8_t decrease) //correct rounding, not just cro
 
 char* itoa_dec_fill(int32_t val,int min,char filler,int decimals)//coverts number to string with defined base and minimal digit, char fillers
 {
+	uint8_t neg=0;
 	static char buf[32] = {0};
 	int i = 30;
 
@@ -27,9 +28,9 @@ char* itoa_dec_fill(int32_t val,int min,char filler,int decimals)//coverts numbe
 		if(val<0)
 		{
 			val=-val;
-			buf[i--]='-';
+			neg=1;
 		}
-		
+
 		for (; (val && i); --i, val /= 10)
 		{
 			if(30-i==decimals && decimals!=0 )
@@ -47,6 +48,9 @@ char* itoa_dec_fill(int32_t val,int min,char filler,int decimals)//coverts numbe
 		buf[i--]='.';
 		buf[i--]='0';
 	}
+
+	if(neg)
+		buf[i--]='-';
 
 	for (; min+i>30; --i)
 		buf[i] = filler;
