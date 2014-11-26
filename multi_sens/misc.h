@@ -21,7 +21,7 @@
 	#define array_length(A) sizeof(A)/sizeof(A[0])
 
 
-	uint32_t	reduce(int32_t value, uint8_t decrease);
+	int32_t	reduce(int32_t value, uint8_t decrease);
 	char* itoa_dec_fill(int32_t val,int min,char filler,int decimals);
 	char* itoa_fill(int32_t val, int min, char filler);
 	char* itoa(int32_t val, int min);
