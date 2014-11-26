@@ -1,6 +1,6 @@
 #ifndef __MISC_LIB
 	#define __MISC_LIB
-	
+
 	#include <inttypes.h>
 	#include <avr/wdt.h>
 
@@ -21,21 +21,21 @@
 	#define array_length(A) sizeof(A)/sizeof(A[0])
 
 
-	uint32_t	reduce(uint32_t value, uint8_t decrease);
-	char* itoa_dec_fill(uint32_t val,int min,char filler,int decimals);
-	char* itoa_fill(uint32_t val, int min, char filler);
-	char* itoa(uint32_t val, int min);
-	char* itoa_dec(uint32_t val,int min,int decimals);
-	
-	#ifdef debug 
-	#define Reset_AVR() uart_println("reset called!"); wdt_enable(WDTO_30MS); while(1) {NOP;}//little workaround, atmega has no software reset	
+	uint32_t	reduce(int32_t value, uint8_t decrease);
+	char* itoa_dec_fill(int32_t val,int min,char filler,int decimals);
+	char* itoa_fill(int32_t val, int min, char filler);
+	char* itoa(int32_t val, int min);
+	char* itoa_dec(int32_t val,int min,int decimals);
+
+	#ifdef debug
+	#define Reset_AVR() uart_println("reset called!"); wdt_enable(WDTO_30MS); while(1) {NOP;}//little workaround, atmega has no software reset
 	#else
-	#define Reset_AVR() wdt_enable(WDTO_30MS); while(1) {NOP;}//little workaround, atmega has no software reset		
-	#endif	
-	
-	
+	#define Reset_AVR() wdt_enable(WDTO_30MS); while(1) {NOP;}//little workaround, atmega has no software reset
+	#endif
+
+
 	#define len(x)  (sizeof(x) / sizeof(x[0]))
-	
+
 
 
 #endif
