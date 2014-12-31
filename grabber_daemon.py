@@ -154,7 +154,7 @@ def smoothen(raw,width):
 	if width<1 :
 		return raw
 	else:
-		data=raw.copy()
+		data=list(raw)
 		extended=[]
 		#add N copies of first record to start of list
 		for _ in range(width):
@@ -363,7 +363,7 @@ def gen_image(raw,ImgName,LineColor):
 			if debug:
 				print("saving high resolution file")
 			savefig(PATH+"charts/"+ImgName+".png",dpi=300,bottom=20,transparent=True)
-			
+
 		if debug:
 			print("saving low resolution file")
 		savefig(PATH+"charts/"+ImgName+"-lowres.png",dpi=100,bottom=20,transparent=True)
