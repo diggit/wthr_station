@@ -20,6 +20,14 @@ UART_TIMEOUT=10#if station doesn't respond in this time, error will be reported
 
 ERR_MSG_NORESPONSE="Stanice neodpovídá! Kontaktujte správce."#err message when station is not responding, will be on webpage
 
+AVERAGING=20
+
+WEIGHT_BASE=1.5
+
+DECIMAL_PLACES=2 #vertical resolution of plots
+
+GEN_HIRES=False #should we generate hi res plots too? (comsumes a lot of CPU time)
+
 from os import uname
 
 if uname()[-1]=='armv6l':
@@ -109,7 +117,7 @@ else:
 
 
 if not GENjs and not nodbaccess:
-	try: 
+	try:
 		import oursql
 		if debug:
 			print("oursql lib loaded")
@@ -141,6 +149,38 @@ this is BAD because this lib is basic one,
 check your python installation,
 maybe your distro provides it in sep. package""")
 	exit(1)
+
+def smoothen(raw,width):
+	if width<1 :
+		return raw
+	else:
+		data=raw.copy()
+		extended=[]
+		#add N copies of first record to start of list
+		for _ in range(width):
+			extended.append(data[0][1])
+
+		#copy values from data array to list
+		for sample in data:
+			extended.append(sample[1])
+
+		#add N copies of last record to end of list
+		for _ in range(width):
+			extended.append(data[-1][1])
+
+
+		for index in range(len(data)):
+			average=0
+			divider=0
+			for chunk_index in range(width):
+				average+=extended[width+index+chunk_index]* (WEIGHT_BASE**(width-chunk_index))
+				average+=extended[width+index-chunk_index]* (WEIGHT_BASE**(width-chunk_index))
+				divider+=2*(WEIGHT_BASE**(width-chunk_index))
+
+			average/=divider
+			data[index]=(data[index][0],average)
+		del(extended)
+		return data
 
 def gen_status_msg(condition, text):
 	if(condition):
@@ -197,22 +237,25 @@ def gen_actual_raw(T,P,H,stamp,status):
 
 #program flow continues below funcion defs
 def gen_image(raw,ImgName,LineColor):
-	
+
 	raw.reverse()
-	
+	smooth=smoothen(raw,AVERAGING)
+
 	Xlist=[]
 	allXlist=[]
 	Ylist=[]
-	
+	smoothYlist=[]
+
 	time_jump=[]
-	
+
 	if debug:
 		print(raw[0])
 		print("first record, will be complete...")
-	Ylist.append(round(raw[0][1],1))
+	Ylist.append(round(raw[0][1],DECIMAL_PLACES))
+	smoothYlist.append(round(smooth[0][1],DECIMAL_PLACES))
 	Xlist.append(str(raw[0][0])[5:16])
 	allXlist.append(Xlist[0])
-	
+
 	for Nline in range(1,len(raw)):
 		if debug:
 			print(raw[Nline][0])
@@ -220,17 +263,17 @@ def gen_image(raw,ImgName,LineColor):
 		Tdate=str(raw[Nline][0])#this, actual date
 		#print(Pdate[5:7],Pdate[8:10],Pdate[11:13],Pdate[14:16],"prev")
 		#print(Tdate[5:7],Tdate[8:10],Tdate[11:13],Tdate[14:16],"this")
-		
+
 		Pmonth=int(Pdate[5:7])
 		Pday=int(Pdate[8:10])
 		Phour=int(Pdate[11:13])
 		Pmin=int(Pdate[14:16])
-		
+
 		Tmonth=int(Tdate[5:7])
 		Tday=int(Tdate[8:10])
 		Thour=int(Tdate[11:13])
 		Tmin=int(Tdate[14:16])
-		
+
 		if(Pdate==Tdate):
 			if debug:
 				print("^^^ duplicity detected!!! ^^^")
@@ -250,27 +293,28 @@ def gen_image(raw,ImgName,LineColor):
 				#ERR="MIN. ALIGN"
 				if debug:
 					print("WARNING - not aligned, but correct time step^^")
-			
+
 			if ERR:#wrong time steps
 				if debug:
 					print("date will be recorded ---------------^^ ERR DETECTED:"+ERR)
 				Xlist.append(Tdate[5:16])
-				##########################	
+				##########################
 				time_jump.append(len(Xlist)-2)#in chart will be rectangle over this change
-				
+
 			#normal case whe date would be recorded
 			elif(Tmonth!=Pmonth or Tday!=Pday or (Thour==12 and Tmin==0)):
 				if debug:
 					print("date will be recorded ---------------^^(OK)")
 				Xlist.append(Tdate[5:16])
-				
+
 			else:#date won't be written
 				if debug:
 					print("no date, but will be recorded -------^^")
 				Xlist.append("")
-			Ylist.append(round(raw[Nline][1],1))
+			Ylist.append(round(raw[Nline][1],DECIMAL_PLACES))
+			smoothYlist.append(round(smooth[Nline][1],DECIMAL_PLACES))
 			allXlist.append(Tdate[5:16])
-	
+
 	#plotting follows
 	if GENchart:
 		if debug:
@@ -278,6 +322,7 @@ def gen_image(raw,ImgName,LineColor):
 		figure(figsize=(9,4), dpi=300)
 		x = np.array(range(len(Xlist)))
 		y = np.array(Ylist)
+		smooth_y = np.array(smoothYlist)
 		my_xticks = Xlist
 		xticks(x, my_xticks,rotation=90)
 		ax = subplot(111)
@@ -290,23 +335,40 @@ def gen_image(raw,ImgName,LineColor):
 		ax.tick_params(axis='y', colors='white')
 		ax.tick_params(axis='x', colors='white')
 
-		plot(x,y,color=LineColor,zorder=10)
+		if debug:
+			print("plotting raw curve")
+		plot(x,y,color=LineColor,alpha=0.3,zorder=10)
+		if debug:
+			print("plotting smooth curve")
+		plot(x,smooth_y,color=LineColor,zorder=10)
 		subplots_adjust(bottom=0.3,left=0.07,right=1-0.07)
-		
-		
+
+
 		#print("Lng:",len(Xlist),len(allXlist))
+		if debug:
+			print("adding X timestamps")
 		for X in range(len(Xlist)):
 			if (allXlist[X][-5:]in ["12:00","00:00"]):#at noon and midnight draw blue line
 				ax.axvline(x=X,linewidth=0.75, linestyle='-', color="blue",alpha=0.75)
 			elif (allXlist[X][-2:] == "00"):
 				ax.axvline(x=X,linewidth=0.75, linestyle='-', color="grey",alpha=0.5)
 			#print(allXlist[X])
-		
+
+		if debug:
+			print("hilighting missing measurements")
 		for T in time_jump:
 			ax.axvspan(T,T+1,edgecolor="white",facecolor="#FF6600",alpha=0.2)
 
-		savefig(PATH+"charts/"+ImgName+".png",dpi=300,bottom=20,transparent=True)
+		if GEN_HIRES:
+			if debug:
+				print("saving high resolution file")
+			savefig(PATH+"charts/"+ImgName+".png",dpi=300,bottom=20,transparent=True)
+			
+		if debug:
+			print("saving low resolution file")
 		savefig(PATH+"charts/"+ImgName+"-lowres.png",dpi=100,bottom=20,transparent=True)
+		if debug:
+			print("plot file done!")
 	else:
 		if debug:
 			print("leaving, no chart generated")
@@ -319,11 +381,11 @@ def query_data():
 	except:
 		print("serial line could not be opened,\nany other program is reading or writing??\ndoes this device exist?")
 		exit(1)
-		
+
 	if debug:
 		print("requesting data")
 	com.write(bytes("Q",ENC))#send request on data from measurement
-	
+
 	raw_received=""
 
 	#skip all incomming messages, not containing  $ and !
@@ -375,7 +437,7 @@ def decode_packet(RCVD):
 			print("ERROR in communication")
 		exit(1)
 	return values#dictionary of measured values
-	
+
 
 def db_access(values):
 	try:
@@ -396,7 +458,7 @@ def db_access(values):
 	if debug:
 		print("requesting data from db")
 
-	if not dry or GENchart:		
+	if not dry or GENchart:
 		curs.execute("SELECT stamp,T0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
 		tmsg=curs.fetchall() #receive this
 
@@ -429,30 +491,30 @@ if ttyS_device!="nodev":
 		data=decode_packet(packet)
 	except ConnectionError as e:
 		print("failed:",e.args[0])
-	
-	
+
+
 else:
 	print("No serial IO will be performed")
 	data={}
+print(GENchart, GENjs)
 
-
-if GENchart and GENjs:
+if GENchart:
 
 	dbout=db_access(data)
 
 	tmsg=dbout[0]
-	pmsg=dbout[1]	
+	pmsg=dbout[1]
 	hmsg=dbout[2]
 
 	stamp=str(tmsg[0][0])
 
 	#output generation
-	if not dry:
+	if not dry and GENjs:
 		#gen_actual_js(tmsg[0][1],pmsg[0][1],hmsg[0][1],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
 		gen_actual_raw(tmsg[0][1],pmsg[0][1],hmsg[0][1],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
 	elif debug:
 		print("no js file write!")
-	
+
 	if GENchart:
 		if debug:
 			print("loading matplotlib")
@@ -479,4 +541,3 @@ elif(not dry):
 	gen_actual_raw(data["T0"],data["P0"],data["H0"],stamp,check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
 else:
 	print("no write done, js file remains untouched (dry ???)")
-
