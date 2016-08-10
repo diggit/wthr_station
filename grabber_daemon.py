@@ -12,6 +12,11 @@ ENC="utf-8"#for python conversions from chars into bytes, don't change :D
 
 MINUTE_STEP=10#should be divider of 60, 10 min. are good..
 
+PLOT_STEPS=300#how many values sould be in plotted
+
+TIME_TICKS=["12:00","00:00"]#which times sould be printed onto X axis
+
+
 ttyS_device="/dev/ttyUSB0"
 
 BAUD=19200#baudrate, this must be same at sensor module program!!
@@ -48,81 +53,86 @@ if(60%MINUTE_STEP):
 #parse command line args
 from sys import argv #basic lib, you've got it with python shipped
 
-if "help" in argv:
+def print_help():
 	print("""Welcome sky people!,
-This is simple python script for requesting and storing (in db) data from sensor module
-read more about project at: https://github.com/diggit/wthr_station
+	This is simple python script for requesting and storing (in db) data from sensor module
+	read more about project at: https://github.com/diggit/wthr_station
 
-your requested help, append parameters to activate function:
-debug		- Turns this script into mess generator :D, verbose enough
-dry, dryrun	- No db write will be performed
--d <device>	- Specify path to serial device, if not, default one is: /dev/ttyUSB0
-if device == 'nodev' no serial IO will be perf.
-nochart		- charts won't be generated (fast run, useful for debug)
-jsonly		- downloads values from station, used only in js file, no chart gererated or db access made
-nodb		- avoid all database access, even read
 
-For more features,visit github and place feature request""")
+	debug		- Turns this script into mess generator :D, verbose enough
+	insane		- debug will be even more verbose
+	dry			- do not write into database
+	nodb		- do not access database
+	-d <device>	- Specify path to serial device, if not, default one is: /dev/ttyUSB0
+	if device == 'nodev' no serial IO will be perf.
+	chart		- generate charts (unless "nodb" specified)
+	vartext		- generate plain text output from actual values
+	varjs		- generate javascript file with variables
+
+	For more features,visit github and place feature request""")
+
+if "help" in argv:
+	print_help()
 	exit(0)
 
-if "dry" in argv or "dryrun" in argv:
-	dry=True
-else:
-	dry=False
+dry= "dry" in argv or "dryrun" in argv
 
 if "-d" in argv:
 	ttyS_device=argv[argv.index("-d")+1]#next argument after -d is device itself...
 
-if "debug" in argv:
-	debug=True
-else:
-	debug=False
+GENchart= "chart" in argv
+GENtext= "vartext" in argv
+GENjs= "varjs" in argv
+debug= "debug" in argv
+insane= "insane" in argv
+dbaccess ="nodb" not in argv
 
-if "nochart" in argv:
-	GENchart=False
-else:
-	GENchart=True
+#we won't need data from DB, do not access it at all...
+if dry and not GENchart:
+	nodb=True
 
-
-if "jsonly" in argv:
-	GENjs=True
-	GENchart=False
-else:
-	GENjs=False
 
 if debug:
 	print("DEBUG mode enabled!! warn: high verbosity ;-)")
-	print("ttyS (serial) device:",ttyS_device)
-	print("baud rate:",BAUD)
-	print("minute step:",MINUTE_STEP)
-	print("here we go")
+if insane:
+	print("INSANE mode enabled!! I'll tell you everything! }:]")
+if insane or debug:
+	print("CFG: ttyS (serial) device:",ttyS_device)
+	print("CFG: baud rate:",BAUD)
+	print("CFG: minute step:",MINUTE_STEP)
+	print("CFG: here we go")
 
-	if dry:
-		print("Dry run active, no db or file write will be done")
+def printDBG(*tup):
+	if debug or insane:
+		for s in tup:
+			print(s,end=" ")
+		print("")
+
+def printINS(*tup):
+	if insane:
+		for s in tup:
+			print(s,end=" ")
+		print("")
 
 if ttyS_device=="nodev":
-	dry=True
-	if debug:
-		print("no device, implicitly enable dry mode (status info ins not in db)!")
+	printDBG("CFG: no device!")
 
-if "nodb" in argv:
-	nodbaccess=True
-	GENchart=False
-	if debug:
-		print("no db access allowed, no charts will be generated!")
-else:
-	nodbaccess=False
+if not dbaccess:
+	printDBG("CFG: nodb -> no db access allowed, no charts will be generated!")
+	GENchart=False #force chart off, we have no data to plot without db
 
+if dry:
+	printDBG("CFG: dry -> no db write will be done")
+	# GENjs=False
+	# GENtext=False
+	# GENchart=False
 
-
-
-if not GENjs and not nodbaccess:
+if dbaccess:
 	try:
 		import oursql
-		if debug:
-			print("oursql lib loaded")
+		printDBG("IMP: oursql lib loaded")
 	except:
-		print("""oursql library must be installed,
+		print("""IMP: ERR oursql library must be installed,
 	sources ale located on launchpad: https://launchpad.net/oursql
 	choose correct version for python3! compile and install...""")
 		exit(1)
@@ -130,43 +140,83 @@ if not GENjs and not nodbaccess:
 if ttyS_device!="nodev":
 	try:
 		import serial
-		if debug:
-			print("serial lib loaded")
+		printDBG("IMP: serial lib loaded")
 	except:
-		print("""serial library must be installed,
+		print("""IMP: ERR serial library must be installed,
 	should be easy to install from your distro repos
 	if not, sources are here: http://pypi.python.org/pypi/pyserial
 	BUT they must be converted for python3 before installing!!! or not?""")
 		exit(1)
 
 try:
-	from time import strftime
-	if debug:
-		print("part of time lib loaded")
+	import datetime
+	start_t=datetime.datetime.today()
+	printDBG("IMP: datetime lib loaded")
 except:
-	print("""can't include time library,
+	print("""IMP: ERR can't include datetime library,
 this is BAD because this lib is basic one,
 check your python installation,
 maybe your distro provides it in sep. package""")
 	exit(1)
 
-def smoothen(raw,width):
+if GENchart:
+	printDBG("IMP: loading pylab")
+	try:
+		import pylab as pl
+		# import numpy as np
+		# from matplotlib.ticker import ScalarFormatter
+		printDBG("IMP: loaded")
+	except:
+		print("IMP: ERROR, you must install pylab first")
+		exit(1)
+
+
+
+
+def smoothen(data,delimiter):
+
+	printDBG("SMTH: complete data set length",len(data))
+	printINS("SMTH: content:\n",data)
+	start=0
+	end=0
+	while len(data) not in [start,end]:#if start or end is set to end of data list
+		if delimiter in data[start:]:#if there is any delimiter
+			end=data[start:].index(delimiter)#find its index
+			end+=start#but we are searching in cropped data set, we must add length of prefixed data to get real value
+			printINS("SMTH: delimiter found at:",end)
+		else:
+			end=len(data)#if no more delimiters found, set end to end of data list
+
+		if(start!=end):
+			data=data[:start]+smoothen_raw(data[start:end])+data[end:]#replace part between delimiters by smoothed values
+		start=end#set new possible start to place where we ended
+
+		printINS("SMTH: start:",start)
+		while start < len(data) and data[start] is delimiter:#skip delimiters until end
+			printINS("SMTH: skipping delimiter at:",start)
+			start+=1
+		# raise Exception("breakpoint")
+
+	return data
+
+
+#weighted shifting average for smoothing curves
+def smoothen_raw(raw,width=AVERAGING):
+	printDBG("SMTHR: smoothed data length:",len(raw))
 	if width<1 :
 		return raw
 	else:
-		data=list(raw)
+		data=list(raw)#create copy, nothing more?
 		extended=[]
 		#add N copies of first record to start of list
 		for _ in range(width):
-			extended.append(data[0][1])
+			extended.append(data[0])
 
-		#copy values from data array to list
-		for sample in data:
-			extended.append(sample[1])
+		extended+=raw
 
 		#add N copies of last record to end of list
 		for _ in range(width):
-			extended.append(data[-1][1])
+			extended.append(data[-1])
 
 
 		for index in range(len(data)):
@@ -178,53 +228,50 @@ def smoothen(raw,width):
 				divider+=2*(WEIGHT_BASE**(width-chunk_index))
 
 			average/=divider
-			data[index]=(data[index][0],average)
+			data[index]=average
 		del(extended)
 		return data
 
+#create html text with device status report
 def gen_status_msg(condition, text):
 	if(condition):
 		return "<span class=\"status_fail\">"+text+": FAILED</span><br>"
 	else:
 		return "<span class=\"status_ok\">"+text+": OK</span><br>"
 
-def check_status(RCVD):
-	if debug:
-		print("reading status from:",RCVD)
+def gen_status(data_map):
+	printDBG("STAT: reading status from:",data_map)
+
+	status_names={"I2C":"i2c BUS","ADT":"ADT module","ADT0":"ADT0 sensor","ADT1":"ADT1 sensor","ADT2":"ADT2 sensor","BMP":"BMP sensor","DHT":"DHT sensor","GEN":"GENERAL status"}
 
 	output=""
-	output+=gen_status_msg(RCVD["I2C"],"i2c BUS")
-	output+=gen_status_msg(RCVD["ADT"],"ADT module")
-	output+=gen_status_msg(RCVD["ADT0"],"ADT0 sensor")
-	output+=gen_status_msg(RCVD["ADT1"],"ADT1 sensor")
-	output+=gen_status_msg(RCVD["ADT2"],"ADT2 sensor")
-	output+=gen_status_msg(RCVD["BMP"],"BMP sensor")
-	output+=gen_status_msg(RCVD["DHT"],"DHT sensor")
-	output+=gen_status_msg(RCVD["GEN"],"GENERAL status")
+	for key in status_names:
+		if key in data_map:
+			output+=gen_status_msg(data_map[key],status_names[key])
+		else:
+			output+=gen_status_msg(1,status_names[key]+" (unknown)")
 
-	if("status_fail" in output):
+	#if anything failed, set overal status to fail
+	if ("status_fail" in output) or "FAIL" in data_map:
 		output="<span class=\"status_fail\">ERR, contact admin!</span>\n"+output
 	else:
 		output="<span class=\"status_ok\">OK</span>\n"+output
 	return output;
 
-# def gen_actual_js(T,P,H,stamp,status):
-# 	if debug:
-# 		print("writing JS file")
-# 	js=open(PATH+"actual.js","w")
-# 	js.write("//dynamicaly generated, do not edit\n")
-# 	js.write("var last_temp= %0.2f;\n" % T)
-# 	js.write("var last_press= %i;\n" % P)
-# 	js.write("var last_humi= %i;\n" % H)
-# 	js.write("var stamp=\""+str(stamp)+"\";\n")
-# 	js.write("var status=\""+status+"\";\n")
-# 	js.close()
-# 	if debug:
-# 		print("write done!")
+def gen_actual_js(T,P,H,stamp,status):
+	printDBG("VAR: writing JS file")
+	js=open(PATH+"actual.js","w")
+	js.write("//dynamicaly generated, do not edit\n")
+	js.write("var last_temp= %0.2f;\n" % T)
+	js.write("var last_press= %i;\n" % P)
+	js.write("var last_humi= %i;\n" % H)
+	js.write("var stamp=\""+str(stamp)+"\";\n")
+	js.write("var status=\""+status+"\";\n")
+	js.close()
+	printDBG("VAR: write done!")
 
 def gen_actual_raw(T,P,H,stamp,status):
-	if debug:
-		print("writing raw file")
+	printDBG("VAR: writing plain text file")
 	js=open(PATH+"actual","w")
 	js.write("%0.1f\n" % T)
 	js.write("%i\n" % P)
@@ -232,158 +279,155 @@ def gen_actual_raw(T,P,H,stamp,status):
 	js.write(str(stamp)+"\n")
 	js.write(status+"\n")
 	js.close()
-	if debug:
-		print("write done!")
+	printDBG("VAR: write done!")
 
-#program flow continues below funcion defs
-def gen_image(raw,ImgName,LineColor):
+#create chart from values from databse, with defined name and defined line color
+def gen_image(data,Xcol,Ycol,ImgName,LineColor):
 
-	raw.reverse()
-	smooth=smoothen(raw,AVERAGING)
+	raw=[]
+	for row in data:#copy only usable values
+		raw.insert(0,[row[Xcol],row[Ycol]])
+	# raw.reverse()
 
+	XlistVisible=[]
 	Xlist=[]
-	allXlist=[]
 	Ylist=[]
-	smoothYlist=[]
 
 	time_jump=[]
 
+	matched_timestamps=0
+
+	# if debug:
+	# 	print(raw[0])
+	# 	print("first record, will be complete...")
+	# Ylist.insert(0,round(raw[0][1],DECIMAL_PLACES))
+	# smoothYlist.insert(0,round(smooth[0][1],DECIMAL_PLACES))
+	# Xlist.insert(0,str(raw[0][0])[5:16])
+	# allXlist.insert(0,Xlist[0])
+
+	stamp_t=start_t
+	if(stamp_t.minute%MINUTE_STEP!=0):#if our actual step is off, fix it for next round
+		printDBG("IMG: aligning timestamp")
+
+	stamp_t-=datetime.timedelta(minutes=stamp_t.minute%MINUTE_STEP,seconds=stamp_t.second,microseconds=stamp_t.microsecond)#zerou out seconds
+
+	for valueN in range(0,PLOT_STEPS):
+		stamp=stamp_t.strftime("%Y-%m-%d %H:%M:%S")
+		printINS(stamp,"--------------")
+
+
+		match=False
+		for N in range(0,len(raw)):
+			# if debug:
+				# print(raw[N][0],stamp_t)
+				#print(raw[N][0].timetuple(),"\n",stamp_t.timetuple())
+			if(raw[N][0] == stamp_t):
+				printINS("IMG: timestamp match!")
+				matched_timestamps+=1
+				Ylist.insert(0,round(raw[N][1],DECIMAL_PLACES))
+				#smoothYlist.insert(0,round(smooth[N][1],DECIMAL_PLACES))
+				raw.pop(N)#this line of values won't be needed anymore
+				match=True
+				break
+		if not match:#no matching timestamp found -> missing values
+			Ylist.insert(0,pl.nan)
+			printINS("IMG: no matching timestamp found, missing measurement!")
+
+		if(stamp_t.strftime("%H:%M") in TIME_TICKS):#on specific hours
+			XlistVisible.insert(0,stamp_t.strftime("%m/%d %H:%M"))# print date and time info on X axis, crop seconds
+			printINS("IMG: visible timestamp recorded")
+		else:
+			XlistVisible.insert(0,"")#otherwise left blank
+			printINS("IMG: visible timestamp ommited")
+		Xlist.insert(0,stamp_t.strftime("%m/%d %H:%M"))
+
+		stamp_t-=datetime.timedelta(minutes=10)
+
 	if debug:
-		print(raw[0])
-		print("first record, will be complete...")
-	Ylist.append(round(raw[0][1],DECIMAL_PLACES))
-	smoothYlist.append(round(smooth[0][1],DECIMAL_PLACES))
-	Xlist.append(str(raw[0][0])[5:16])
-	allXlist.append(Xlist[0])
+		print("IMG: we've ended with",matched_timestamps,"matched,",PLOT_STEPS-matched_timestamps,"missing and",len(raw),"unused time stamps")
+		if insane:
+			for i in raw:
+				print(i[0])
 
-	for Nline in range(1,len(raw)):
-		if debug:
-			print(raw[Nline][0])
-		Pdate=str(raw[Nline-1][0])#date from previos record
-		Tdate=str(raw[Nline][0])#this, actual date
-		#print(Pdate[5:7],Pdate[8:10],Pdate[11:13],Pdate[14:16],"prev")
-		#print(Tdate[5:7],Tdate[8:10],Tdate[11:13],Tdate[14:16],"this")
+	printDBG("IMG: smoothing curve...")
+	smoothYlist=smoothen(Ylist,pl.nan)
 
-		Pmonth=int(Pdate[5:7])
-		Pday=int(Pdate[8:10])
-		Phour=int(Pdate[11:13])
-		Pmin=int(Pdate[14:16])
 
-		Tmonth=int(Tdate[5:7])
-		Tday=int(Tdate[8:10])
-		Thour=int(Tdate[11:13])
-		Tmin=int(Tdate[14:16])
-
-		if(Pdate==Tdate):
-			if debug:
-				print("^^^ duplicity detected!!! ^^^")
-		else:#ok, not DUPLA, check that
-			ERR=0
-			#note when some part of date (month,day, hour, min) are same, it os OK, when it is increased by ONE, theme must be checked lower part to
-			# eg DAY changed from 23 to 24, hours must be checked if they were changed from 23 to 0 and so on...
-			if not (Tmonth==Pmonth or ((Tmonth-Pmonth==1 or (Tmonth==1 and Pmonth==12)) and Tday==1 and Pday==M_lng[Pmonth-1])):#NEG when are months OK
-				ERR="MONTH"
-			elif not (Tday==Pday or ((Tday-Pday==1 or (Tday==1 and Pday==M_lng[Pmonth-1])) and Thour==0 and Phour==23)):#NEG when are days OK
-				ERR="DAY"
-			elif not (Thour==Phour or ((Thour-Phour==1 or (Thour==0 and Phour==23)) and Pmin+MINUTE_STEP-60==Tmin )):#NEG when are hours OK (last cond. eg 54+10-60==4)
-				ERR="HOUR"
-			elif not (Pmin+MINUTE_STEP==Tmin or (Pmin==(60-MINUTE_STEP) and Tmin==0)):#NEG when mins are OK
-				ERR="MINUTE"
-			elif (Tmin%MINUTE_STEP):#if minutes are not aligned
-				#ERR="MIN. ALIGN"
-				if debug:
-					print("WARNING - not aligned, but correct time step^^")
-
-			if ERR:#wrong time steps
-				if debug:
-					print("date will be recorded ---------------^^ ERR DETECTED:"+ERR)
-				Xlist.append(Tdate[5:16])
-				##########################
-				time_jump.append(len(Xlist)-2)#in chart will be rectangle over this change
-
-			#normal case whe date would be recorded
-			elif(Tmonth!=Pmonth or Tday!=Pday or (Thour==12 and Tmin==0)):
-				if debug:
-					print("date will be recorded ---------------^^(OK)")
-				Xlist.append(Tdate[5:16])
-
-			else:#date won't be written
-				if debug:
-					print("no date, but will be recorded -------^^")
-				Xlist.append("")
-			Ylist.append(round(raw[Nline][1],DECIMAL_PLACES))
-			smoothYlist.append(round(smooth[Nline][1],DECIMAL_PLACES))
-			allXlist.append(Tdate[5:16])
 
 	#plotting follows
 	if GENchart:
-		if debug:
-			print("generating plot")
-		figure(figsize=(9,4), dpi=300)
-		x = np.array(range(len(Xlist)))
-		y = np.array(Ylist)
-		smooth_y = np.array(smoothYlist)
-		my_xticks = Xlist
-		xticks(x, my_xticks,rotation=90)
-		ax = subplot(111)
+		printDBG("IMG: generating plot")
+		pl.figure(figsize=(9,4), dpi=300)
+		printDBG("IMG: loading data")
+		x = pl.array(range(len(XlistVisible)))
+		y = pl.array(Ylist)
+		smooth_y = pl.array(smoothYlist)
+
+		printDBG("IMG: loading xticks")
+		pl.xticks(x, XlistVisible,rotation=90)
+		printDBG("IMG: setting plot properties")
+		ax = pl.subplot(111)
 		ax.tick_params(labelright=True)#Y labels on both sides (we've got wide chart)
-		ax.yaxis.grid(True,color='white')#only Y axis grid
-		y_formatter = matplotlib.ticker.ScalarFormatter(useOffset=False)
-		ax.yaxis.set_major_formatter(y_formatter)
-		for n in ["bottom","top","left","right"]:
-			ax.spines[n].set_color('white')
 		ax.tick_params(axis='y', colors='white')
 		ax.tick_params(axis='x', colors='white')
+		ax.yaxis.grid(True,color='white')#only Y axis grid
+		ax.yaxis.set_major_formatter(pl.ScalarFormatter(useOffset=False))
+		# ax.xaxis.grid(True, color="black")
+		for n in ax.spines:
+			ax.spines[n].set_color('white')
 
-		if debug:
-			print("plotting raw curve")
-		plot(x,y,color=LineColor,alpha=0.3,zorder=10)
-		if debug:
-			print("plotting smooth curve")
-		plot(x,smooth_y,color=LineColor,zorder=10)
-		subplots_adjust(bottom=0.3,left=0.07,right=1-0.07)
+		#plot lines
+		printDBG("IMG: plotting raw curve")
+		pl.plot(x,y,color=LineColor,alpha=0.3,zorder=10)
+		printDBG("IMG: plotting smooth curve")
+		pl.plot(x,smooth_y,color=LineColor,zorder=10)
+
+		#adjust subplot
+		pl.subplots_adjust(bottom=0.3,left=0.07,right=1-0.07)
 
 
-		#print("Lng:",len(Xlist),len(allXlist))
-		if debug:
-			print("adding X timestamps")
+		#print("IMG:Lng:",len(Xlist),len(allXlist))
+		printDBG("IMG: adding X timestamps")
 		for X in range(len(Xlist)):
-			if (allXlist[X][-5:]in ["12:00","00:00"]):#at noon and midnight draw blue line
+			if (Xlist[X][-5:]in TIME_TICKS):
 				ax.axvline(x=X,linewidth=0.75, linestyle='-', color="blue",alpha=0.75)
-			elif (allXlist[X][-2:] == "00"):
+			elif (Xlist[X][-2:] == "00"):#every hour
 				ax.axvline(x=X,linewidth=0.75, linestyle='-', color="grey",alpha=0.5)
-			#print(allXlist[X])
 
-		if debug:
-			print("hilighting missing measurements")
-		for T in time_jump:
-			ax.axvspan(T,T+1,edgecolor="white",facecolor="#FF6600",alpha=0.2)
+		printDBG("IMG: hilighting missing measurements")
+
+		ival=0
+		while ival < len(Ylist):
+			if Ylist[ival] is pl.nan:
+				start=ival
+				while(ival<len(Ylist) and Ylist[ival] is pl.nan):
+					ival+=1
+				printINS("IMG: hilighting missing from:",start,"to",ival)
+				ax.axvspan(start,ival,facecolor="#FF0000",alpha=1)
+			else:
+				ival+=1
 
 		if GEN_HIRES:
 			if debug:
-				print("saving high resolution file")
-			savefig(PATH+"charts/"+ImgName+".png",dpi=300,bottom=20,transparent=True)
+				print("IMG: saving high resolution file")
+			pl.savefig(PATH+"charts/"+ImgName+".png",dpi=300,bottom=20,transparent=True)
 
-		if debug:
-			print("saving low resolution file")
-		savefig(PATH+"charts/"+ImgName+"-lowres.png",dpi=100,bottom=20,transparent=True)
-		if debug:
-			print("plot file done!")
+		printDBG("IMG: saving low resolution file")
+		pl.savefig(PATH+"charts/"+ImgName+"-lowres.png",dpi=100,bottom=20,transparent=True)
+		printDBG("IMG: plot file done!")
 	else:
-		if debug:
-			print("leaving, no chart generated")
+		printDBG("IMG: leaving, no chart generated")
 
 def query_data():
 	try:
 		com=serial.Serial(ttyS_device,BAUD,timeout=UART_TIMEOUT)#open communication
-		if debug:
-			print("serial device opened")
+		printDBG("serial device opened")
 	except:
-		print("serial line could not be opened,\nany other program is reading or writing??\ndoes this device exist?")
+		print("ERR: serial line could not be opened,\n\tany other program is reading or writing??\n\tdoes this device exist?")
 		exit(1)
 
 	if debug:
-		print("requesting data")
+		print("requesting data...")
 	com.write(bytes("Q",ENC))#send request on data from measurement
 
 	raw_received=""
@@ -392,152 +436,124 @@ def query_data():
 	while not all(x in str(raw_received) for x in ["!","$"]):
 		raw_received=com.readline()#receive them
 		if(len(str(raw_received)[2:-3])==0):
-			raise ConnectionError("No response")
-		if debug:
-			print("read:",str(raw_received)[2:-3],"len:",len(str(raw_received)[2:-3]))
+			raise Exception("No response")#in case of timeout...
+		printDBG("read:",str(raw_received)[2:-3],"len:",len(str(raw_received)[2:-3]))
 
-	RCVD=str(raw_received)[2:-3].split(",")#split them into list, crop: " newline
 	com.close()#close our comunication
 	if debug:
 		print("serial device closed")
-	return RCVD
+	return str(raw_received)[2:-3].split(",")#split them into list, crop: " newline
 
-def decode_packet(RCVD):
+#list of values from device
+def decode_packet(data):
 	values={}#dictionary, key is property
 
-	if debug:
-			print("starting data conversion...")
-	if RCVD[0]=='!' and RCVD[-1]=='$':#first char is "!" and last one "$", yeah it is our 'packet'
+	printDBG("starting data conversion...")
+	if data[0]=='!' and data[-1]=='$':#first char is "!" and last one "$", yeah it is our 'packet'
 		#do some "translations"
-		for i in range(2,len(RCVD)-2,2):#exclude first and last character, character(property) is every second -> step 2
-			#print(RCVD[i])
-			if("T" in RCVD[i] and len(RCVD[i])==2):#if T, temperature value follows
-				values[RCVD[i]]=int(RCVD[i+1])/10 #convert it into number and divide by 10 (sensor measures with 0.1 accuracy but float is not used for ease of use)
+		for i in range(2,len(data)-2,2):#exclude first and last character, character(property) is every second -> step 2
+			#print(data[i])
+			if("T" in data[i] and len(data[i])==2):#if "T?" where ? is sensor number, temperature value follows
+				values[data[i]]=int(data[i+1])/10 #convert it into number and divide by 10 (sensor measures with 0.1 accuracy but float is not used for ease of use)
 				if debug or dry:
-					print("temperature, key:",RCVD[i],"value=",values[RCVD[i]])
-			elif("P" in RCVD[i] and len(RCVD[i])==2):#if P, pressure value follows
-				values[RCVD[i]]=int(RCVD[i+1])/((1-station_altitude/44330)**5.255)/100 #formula from BMP085 datasheet
+					print("temperature, key:",data[i],"value=",values[data[i]])
+			elif("P" in data[i] and len(data[i])==2):#if P, pressure value follows
+				values[data[i]]=int(data[i+1])/((1-station_altitude/44330)**5.255)/100 #formula from BMP085 datasheet
 				if debug or dry:
-					print("pressure, key:",RCVD[i],"value=",values[RCVD[i]])
-			elif("H" in RCVD[i] and len(RCVD[i])==2):#if H, humdity value follows
-				values[RCVD[i]]=int(RCVD[i+1])#convert it into num, that's all
+					print("pressure, key:",data[i],"value=",values[data[i]])
+			elif("H" in data[i] and len(data[i])==2):#if H, humdity value follows
+				values[data[i]]=int(data[i+1])#convert it into num, that's all
 				if debug or dry:
-					print("humidity, key:",RCVD[i],"value=",values[RCVD[i]])
+					print("humidity, key:",data[i],"value=",values[data[i]])
 			else:
-				values[RCVD[i]]=int(RCVD[i+1])#somethink unknown, just convert and save
-		if debug:
-			print(values)#print debug message
+				values[data[i]]=int(data[i+1])#somethink unknown, just convert and save
+		printDBG(values)#print debug message
 	else:
-		if debug:
-			print("wrong response from station, it was:",RCVD)
-		##gen_actual_js(0,0,0,strftime("%d.%m. %Y %H:%M"),ERR_MSG_NORESPONSE)
-		if not dry:
-			gen_actual_raw(0,0,0,strftime("%d.%m. %Y %H:%M"),ERR_MSG_NORESPONSE)
-		elif debug:
-			print("ERROR in communication")
-		exit(1)
+		raise Exception("invalid response from station, it was:\n",data)
 	return values#dictionary of measured values
 
 
-def db_access(values):
+def db_access(values,date_limit_str):
 	try:
 		conn = oursql.connect(user='station', passwd='trollface',db='weather', port=3306)#connect to mysql database
-		if debug:
-			print("connected to db!")
+		printDBG("DB: connected!")
 	except:
-		print("unable to connect to mysql db, check for running daemon, database existence and table existence")
+		print("DB: ERR- unable to connect to mysql db, check for running daemon, database existence and table existence")
 		exit(1)
+
 	curs = conn.cursor()#create cursor
 	if not dry:
-		curs.execute('INSERT INTO `data` (stamp,P0,T0,H0) VALUES (?, ?, ?, ?)',(strftime("%Y-%m-%d %H:%M:00"),values["P0"], values["T0"], values["H0"]))#save values into database
-		if debug:
-			print("data inserted into table")
-	elif debug:
-		print("dry run! no db write done")
+		curs.execute('INSERT INTO `data` (stamp,P0,T0,H0) VALUES (?, ?, ?, ?)',(start_t.strftime("%Y-%m-%d %H:%M:00"),values["P0"], values["T0"], values["H0"]))#save values into database
+		printDBG("DB: data inserted into table")
+	else:
+		printDBG("DB: dry run! no db write done")
 
-	if debug:
-		print("requesting data from db")
+	if GENchart:
+		# query="SELECT stamp,T0,P0,H0 FROM data ORDER BY stamp DESC WHERE stamp > \'"+date_limit_str+"\' LIMIT "+str(PLOT_STEPS)+" ;"
+		query="SELECT stamp,T0,P0,H0 FROM data WHERE stamp > \'"+date_limit_str+"\' ORDER BY stamp DESC LIMIT "+str(PLOT_STEPS)+" ;"
 
-	if not dry or GENchart:
-		curs.execute("SELECT stamp,T0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of T0 (temperature)
-		tmsg=curs.fetchall() #receive this
+		printDBG("DB: requesting data\nquery:",query)
 
-		curs.execute("SELECT stamp,P0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of P0 (pressure)
-		pmsg=curs.fetchall() #receive this
+		curs.execute(query)#request last 300 lines of T0 (temperature)
+		db_data=curs.fetchall() #receive this
 
-		curs.execute("SELECT stamp,H0 FROM data ORDER BY stamp DESC LIMIT 300;")#request last 300 lines of h0 (humidity)
-		hmsg=curs.fetchall() #receive this
-
-		if debug:
-			print("received")
-	elif debug:
-		print("skipping db query, data won't be used")
-		tmsg=0
-		pmsg=0
-		hmsg=0
+		printDBG("DB: data read")
+	else:
+		printDBG("DB: no data read")
+		db_data=[]
 
 	curs.close()#destruct cursor
 	conn.close()#disconnect from db
-	if debug:
-		print("db connection closed")
-	return [tmsg,pmsg,hmsg]
+	printDBG("DB: connection closed")
+	return db_data
 
 
 
 #here it RUNS!
+data=[]
 if ttyS_device!="nodev":
 	try:
 		packet=query_data()
 		data=decode_packet(packet)
-	except ConnectionError as e:
-		print("failed:",e.args[0])
-
+	except Exception as e:
+		print("ERR: failed:",e.args[0])
+		dry=True#because there is nothing to write to databse
 
 else:
 	print("No serial IO will be performed")
-	data={}
-print(GENchart, GENjs)
+
+if dbaccess:
+	date_limit=start_t-datetime.timedelta(minutes=start_t.minute%MINUTE_STEP+ MINUTE_STEP*PLOT_STEPS ,seconds=start_t.second,microseconds=start_t.microsecond)#zerou out s,us, align minutes, get furthest date, that could be displayed in chart
+	if debug:
+		print("DB: database query date limit:",date_limit)
+	dbout=db_access(data,date_limit.strftime("%Y-%m-%dT%H:%M:%S.000"))
 
 if GENchart:
 
-	dbout=db_access(data)
-
-	tmsg=dbout[0]
-	pmsg=dbout[1]
-	hmsg=dbout[2]
-
-	stamp=str(tmsg[0][0])
+	stamp=str(dbout[0][0])
 
 	#output generation
-	if not dry and GENjs:
-		#gen_actual_js(tmsg[0][1],pmsg[0][1],hmsg[0][1],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
-		gen_actual_raw(tmsg[0][1],pmsg[0][1],hmsg[0][1],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
-	elif debug:
-		print("no js file write!")
+	if GENjs:
+		gen_actual_js(dbout[0][1],dbout[0][2],dbout[0][3],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],gen_status(data)) # DAY.MONTH. YEAR HOUR:MIN
+	if GENtext:
+		gen_actual_raw(dbout[0][1],dbout[0][2],dbout[0][3],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],gen_status(data)) # DAY.MONTH. YEAR HOUR:MIN
 
-	if GENchart:
-		if debug:
-			print("loading matplotlib")
-		try:
-			from pylab import *
-			import numpy as np
-			from matplotlib.ticker import MultipleLocator, FormatStrFormatter
-			if debug:
-				print("loaded")
-		except:
-			print("ERROR, you must install matplotlib first, visit: http://matplotlib.org/\n or clone and build from GIT: https://github.com/matplotlib/matplotlib")
-			exit(1)
 
-		gen_image(tmsg,"temp","#00FF00")
-		gen_image(pmsg,"pres","#FFFF00")
-		gen_image(hmsg,"humi","#33CCFF")
+	gen_image(dbout,0,1,"temp","#00FF00")
+	gen_image(dbout,0,2,"pres","#FFFF00")
+	gen_image(dbout,0,3,"humi","#33CCFF")
 
-elif(not dry):
+else: #otherwise create actual values directly from received data
 	if not data:
-		print("no data received, was right device chosen? (-d nodev ???)")
-		exit(1)
-	stamp=strftime("%d.%m. %Y %H:%M")
-	#gen_actual_js(data["T0"],data["P0"],data["H0"],stamp,check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
-	gen_actual_raw(data["T0"],data["P0"],data["H0"],stamp,check_status(data)) # DAY.MONTH. YEAR HOUR:MIN
-else:
-	print("no write done, js file remains untouched (dry ???)")
+		print("ERR: no data from device received, was right device chosen? (-d nodev ???)")
+		T=P=H=0
+	else:
+		T=data["T0"]
+		P=data["P0"]
+		H=data["H0"]
+	stamp=start_t.strftime("%d.%m. %Y %H:%M")
+
+	if GENjs:
+		gen_actual_js(T,P,H,stamp,gen_status(data)) # DAY.MONTH. YEAR HOUR:MIN
+	if GENtext:
+		gen_actual_raw(T,P,H,stamp,gen_status(data)) # DAY.MONTH. YEAR HOUR:MIN
