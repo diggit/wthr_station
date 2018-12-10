@@ -18,10 +18,10 @@ function load_values()
 			document.getElementById("Atemp").innerHTML=splittered[0]+" °C";
 			document.getElementById("Apress").innerHTML=splittered[1]+" hPa";
 			document.getElementById("Ahumi").innerHTML=splittered[2]+" %";
-			document.getElementById("Alight").innerHTML=splittered[3]+" %";
-			document.getElementById("stamp").innerHTML="změřeno "+splittered[3]+", aktualizováno "+time.getHours()+":"+leftPad(time.getMinutes(),2)+":"+leftPad(time.getSeconds(),2);
-			document.getElementById("status").innerHTML=splittered[4];
-			document.getElementById("status_extended").innerHTML=splittered[5];
+			document.getElementById("Alight").innerHTML=splittered[3]+" lux";
+			document.getElementById("stamp").innerHTML="změřeno "+splittered[4]+", aktualizováno "+time.getHours()+":"+leftPad(time.getMinutes(),2)+":"+leftPad(time.getSeconds(),2);
+			document.getElementById("status").innerHTML=splittered[5];
+			document.getElementById("status_extended").innerHTML=splittered[6];
 			notify("stamp")
 		}
 	}
