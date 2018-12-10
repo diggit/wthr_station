@@ -8,8 +8,6 @@
 
 station_altitude=320 #in meters
 
-ENC="utf-8"#for python conversions from chars into bytes, don't change :D
-
 MINUTE_STEP=10#should be divider of 60, 10 min. are good..
 
 PLOT_STEPS=300#how many values sould be in plotted
@@ -242,7 +240,7 @@ def gen_status_msg(condition, text):
 def gen_status(data_map):
 	printDBG("STAT: reading status from:",data_map)
 
-	status_names={"BH":"BH light sensor","I2C":"i2c BUS","ADT":"ADT module","ADT0":"ADT0 sensor","ADT1":"ADT1 sensor","ADT2":"ADT2 sensor","BMP":"BMP sensor","DHT":"DHT sensor","GEN":"GENERAL status"}
+	status_names={"BHL":"BH Light sensor","I2C":"i2c BUS","ADT":"ADT module","ADT0":"ADT0 sensor","ADT1":"ADT1 sensor","ADT2":"ADT2 sensor","BMP":"BMP sensor","DHT":"DHT sensor","GEN":"GENERAL status"}
 
 	output=""
 	for key in status_names:
@@ -436,7 +434,7 @@ def query_data():
 
 	if debug:
 		print("requesting data...")
-	com.write(bytes("Q",ENC))#send request on data from measurement
+	com.write(b"Q")#send request on data from measurement
 
 	raw_received=""
 
@@ -461,19 +459,19 @@ def decode_packet(data):
 		#do some "translations"
 		for i in range(2,len(data)-2,2):#exclude first and last character, character(property) is every second -> step 2
 			#print(data[i])
-			if("T" in data[i] and len(data[i])==2):#if "T?" where ? is sensor number, temperature value follows
+			if(data[i].startswith("T") and len(data[i])==2):#if "T?" where ? is sensor number, temperature value follows
 				values[data[i]]=int(data[i+1])/10 #convert it into number and divide by 10 (sensor measures with 0.1 accuracy but float is not used for ease of use)
 				if debug or dry:
 					print("temperature, key:",data[i],"value=",values[data[i]])
-			elif("L" in data[i] and len(data[i])==2):#if "L?" where ? is sensor number, light value follows
+			elif(data[i].startswith("L") and len(data[i])==2):#if "L?" where ? is sensor number, light value follows
 				values[data[i]]=int(data[i+1])/2/1.2 #convert it into number (formula from datasheet), according to arduino lib, mode2 value must be additionaly divided by 2 (double resolution)
 				if debug or dry:
 					print("ambient light, key:",data[i],"value=",values[data[i]])
-			elif("P" in data[i] and len(data[i])==2):#if P, pressure value follows
+			elif(data[i].startswith("P") and len(data[i])==2):#if P, pressure value follows
 				values[data[i]]=int(data[i+1])/((1-station_altitude/44330)**5.255)/100 #formula from BMP085 datasheet
 				if debug or dry:
 					print("pressure, key:",data[i],"value=",values[data[i]])
-			elif("H" in data[i] and len(data[i])==2):#if H, humdity value follows
+			elif(data[i].startswith("H") and len(data[i])==2):#if H, humdity value follows
 				values[data[i]]=int(data[i+1])#convert it into num, that's all
 				if debug or dry:
 					print("humidity, key:",data[i],"value=",values[data[i]])

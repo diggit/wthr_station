@@ -282,7 +282,7 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 		uart_print(",DHT,");
 		uart_num(error_flags.DHT,1);
 
-		uart_print(",BH,");
+		uart_print(",BHL,");
 		uart_num(error_flags.BH,1);
 
 		uart_print(",$\n");
