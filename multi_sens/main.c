@@ -21,6 +21,7 @@
 #include "dht.h"
 #include "ADT.h"//library for extended temperature board
 #include "BMP.h" 
+#include "BH1750.h" 
 
 #define LED_CFG() DDRC|=1
 #define LED_ON() PORTC|=1
@@ -185,6 +186,8 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 	int16_t adt_temperature=0;
 	//DHT humidity
 	uint8_t dht_humidity=0;
+	//BH light
+	uint16_t bh_light=0;
 
 
 	if(reply=='Q')//send data as response of Query
@@ -192,34 +195,49 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 		uart_println("measuring...");
 		hw_check();
 
-		if(error_flags.i2c==0 && error_flags.BMP==0 && BMP_measure(&bmp_pressure,&bmp_temperature)==0)
-		{
-			NOP;
-		}
+		if(error_flags.i2c || BH_measure())//get value from EX board
+			error_flags.BH=1;
 		else
+			error_flags.BH=0;
+
+		if(error_flags.i2c || BMP_measure(&bmp_pressure,&bmp_temperature))
 		{
 			error_flags.BMP=1;
 			bmp_pressure=0;
 			bmp_temperature=0;
 		}
-
-		if(error_flags.i2c==0 && error_flags.ADT==0 && ADT_measure(&adt_temperature,ADT_samples,ADT_pause)==0)//get value from EX board
-		{
-			NOP;
-		}
 		else
+			error_flags.BMP=0;
+
+		if(error_flags.i2c || ADT_measure(&adt_temperature,ADT_samples,ADT_pause))//get value from EX board
 		{
 			error_flags.ADT=1;
 			adt_temperature=0;
 		}
-
-		if(error_flags.DHT==0 && DHT(DHT_sensor_pin)==0)
-			dht_humidity=DHT_response[0];
 		else
+			error_flags.ADT=0;
+
+		if(DHT(DHT_sensor_pin))
 		{
 			error_flags.DHT=1;	
 			dht_humidity=0;
 		}
+		else
+		{
+			error_flags.DHT=0;	
+			dht_humidity=DHT_response[0];
+		}
+
+		if(error_flags.i2c || error_flags.BH || BH_read(&bh_light))//get value from EX board
+			error_flags.BH=1;
+		
+		if(error_flags.BH)
+			bh_light=0;
+		
+
+
+
+
 //ADT------------------------------------------		
 		//power on sensors on EXT board
 		
@@ -236,6 +254,9 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 		uart_print(",H0,");//himudity from DHT11
 		uart_num(dht_humidity,1);
 
+		uart_print(",L0,");//light intensity from BH1750
+		uart_num(bh_light,1);
+
 		//errors
 		uart_print(",GEN,");
 		uart_num(error_flags.general,1);
@@ -243,7 +264,6 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 		uart_print(",I2C,");
 		uart_num(error_flags.i2c,1);
 
-		//global ADT status
 		uart_print(",ADT,");
 		uart_num(error_flags.ADT,1);
 
@@ -256,13 +276,14 @@ ISR(USART_RXC_vect)//return measured values on request, otherwivise, node will b
 			uart_num( (ADT_status&(1<<i)) ? 1 : 0,1);	
 		}
 		
-
 		uart_print(",BMP,");
 		uart_num(error_flags.BMP,1);
 
 		uart_print(",DHT,");
 		uart_num(error_flags.DHT,1);
 
+		uart_print(",BH,");
+		uart_num(error_flags.BH,1);
 
 		uart_print(",$\n");
 		

@@ -28,6 +28,7 @@
 		uint8_t DHT:1;
 		uint8_t ADT:1;
 		uint8_t	BMP:1;
+		uint8_t	BH:1;
 		uint8_t timeout:1;
 	};
 

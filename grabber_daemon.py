@@ -242,7 +242,7 @@ def gen_status_msg(condition, text):
 def gen_status(data_map):
 	printDBG("STAT: reading status from:",data_map)
 
-	status_names={"I2C":"i2c BUS","ADT":"ADT module","ADT0":"ADT0 sensor","ADT1":"ADT1 sensor","ADT2":"ADT2 sensor","BMP":"BMP sensor","DHT":"DHT sensor","GEN":"GENERAL status"}
+	status_names={"BH":"BH light sensor","I2C":"i2c BUS","ADT":"ADT module","ADT0":"ADT0 sensor","ADT1":"ADT1 sensor","ADT2":"ADT2 sensor","BMP":"BMP sensor","DHT":"DHT sensor","GEN":"GENERAL status"}
 
 	output=""
 	for key in status_names:
@@ -258,31 +258,33 @@ def gen_status(data_map):
 		output="<span class=\"status_ok\">OK</span>\n"+output
 	return output;
 
-def gen_actual_js(T,P,H,stamp,status):
+def gen_actual_js(T,P,H,L,stamp,status):
 	printDBG("VAR: writing JS file")
 	js=open(PATH+"actual.js","w")
 	js.write("//dynamicaly generated, do not edit\n")
 	js.write("var last_temp= %0.2f;\n" % T)
 	js.write("var last_press= %i;\n" % P)
 	js.write("var last_humi= %i;\n" % H)
+	js.write("var last_light= %i;\n" % L)
 	js.write("var stamp=\""+str(stamp)+"\";\n")
 	js.write("var status=\""+status+"\";\n")
 	js.close()
 	printDBG("VAR: write done!")
 
-def gen_actual_raw(T,P,H,stamp,status):
+def gen_actual_raw(T,P,H,L,stamp,status):
 	printDBG("VAR: writing plain text file")
 	js=open(PATH+"actual","w")
 	js.write("%0.1f\n" % T)
 	js.write("%i\n" % P)
 	js.write("%i\n" % H)
+	js.write("%i\n" % L)
 	js.write(str(stamp)+"\n")
 	js.write(status+"\n")
 	js.close()
 	printDBG("VAR: write done!")
 
 #create chart from values from databse, with defined name and defined line color
-def gen_image(data,Xcol,Ycol,ImgName,LineColor):
+def gen_image(data,Xcol,Ycol,ImgName,LineColor, logY = False):
 
 	raw=[]
 	for row in data:#copy only usable values
@@ -378,9 +380,15 @@ def gen_image(data,Xcol,Ycol,ImgName,LineColor):
 
 		#plot lines
 		printDBG("IMG: plotting raw curve")
-		pl.plot(x,y,color=LineColor,alpha=0.3,zorder=10)
+		if logY:
+			pl.logy(x,y,color=LineColor,alpha=0.3,zorder=10)
+		else:
+			pl.plot(x,y,color=LineColor,alpha=0.3,zorder=10)
 		printDBG("IMG: plotting smooth curve")
-		pl.plot(x,smooth_y,color=LineColor,zorder=10)
+		if logY:
+			pl.logy(x,smooth_y,color=LineColor,zorder=10)
+		else:
+			pl.plot(x,smooth_y,color=LineColor,zorder=10)
 
 		#adjust subplot
 		pl.subplots_adjust(bottom=0.3,left=0.07,right=1-0.07)
@@ -457,6 +465,10 @@ def decode_packet(data):
 				values[data[i]]=int(data[i+1])/10 #convert it into number and divide by 10 (sensor measures with 0.1 accuracy but float is not used for ease of use)
 				if debug or dry:
 					print("temperature, key:",data[i],"value=",values[data[i]])
+			elif("L" in data[i] and len(data[i])==2):#if "L?" where ? is sensor number, light value follows
+				values[data[i]]=int(data[i+1])/2/1.2 #convert it into number (formula from datasheet), according to arduino lib, mode2 value must be additionaly divided by 2 (double resolution)
+				if debug or dry:
+					print("ambient light, key:",data[i],"value=",values[data[i]])
 			elif("P" in data[i] and len(data[i])==2):#if P, pressure value follows
 				values[data[i]]=int(data[i+1])/((1-station_altitude/44330)**5.255)/100 #formula from BMP085 datasheet
 				if debug or dry:
@@ -483,14 +495,14 @@ def db_access(values,date_limit_str):
 
 	curs = conn.cursor()#create cursor
 	if not dry:
-		curs.execute('INSERT INTO `data` (stamp,P0,T0,H0) VALUES (?, ?, ?, ?)',(start_t.strftime("%Y-%m-%d %H:%M:00"),values["P0"], values["T0"], values["H0"]))#save values into database
+		curs.execute('INSERT INTO `data` (stamp,P0,T0,H0,L0) VALUES (?, ?, ?, ?, ?)',(start_t.strftime("%Y-%m-%d %H:%M:00"),values["P0"], values["T0"], values["H0"], values["L0"]))#save values into database
 		printDBG("DB: data inserted into table")
 	else:
 		printDBG("DB: dry run! no db write done")
 
 	if GENchart:
-		# query="SELECT stamp,T0,P0,H0 FROM data ORDER BY stamp DESC WHERE stamp > \'"+date_limit_str+"\' LIMIT "+str(PLOT_STEPS)+" ;"
-		query="SELECT stamp,T0,P0,H0 FROM data WHERE stamp > \'"+date_limit_str+"\' ORDER BY stamp DESC LIMIT "+str(PLOT_STEPS)+" ;"
+		# query="SELECT stamp,T0,P0,H0,L0 FROM data ORDER BY stamp DESC WHERE stamp > \'"+date_limit_str+"\' LIMIT "+str(PLOT_STEPS)+" ;"
+		query="SELECT stamp,T0,P0,H0,L0 FROM data WHERE stamp > \'"+date_limit_str+"\' ORDER BY stamp DESC LIMIT "+str(PLOT_STEPS)+" ;"
 
 		printDBG("DB: requesting data\nquery:",query)
 
@@ -534,14 +546,15 @@ if GENchart:
 
 	#output generation
 	if GENjs:
-		gen_actual_js(dbout[0][1],dbout[0][2],dbout[0][3],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],gen_status(data)) # DAY.MONTH. YEAR HOUR:MIN
+		gen_actual_js(dbout[0][1],dbout[0][2],dbout[0][3],dbout[0][4],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],gen_status(data)) # DAY.MONTH. YEAR HOUR:MIN
 	if GENtext:
-		gen_actual_raw(dbout[0][1],dbout[0][2],dbout[0][3],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],gen_status(data)) # DAY.MONTH. YEAR HOUR:MIN
+		gen_actual_raw(dbout[0][1],dbout[0][2],dbout[0][3],dbout[0][4],stamp[8:10]+"."+stamp[5:7]+". "+stamp[0:4]+" "+stamp[11:16],gen_status(data)) # DAY.MONTH. YEAR HOUR:MIN
 
 
 	gen_image(dbout,0,1,"temp","#00FF00")
 	gen_image(dbout,0,2,"pres","#FFFF00")
 	gen_image(dbout,0,3,"humi","#33CCFF")
+	gen_image(dbout,0,4,"lght","#FFD700", True)
 
 else: #otherwise create actual values directly from received data
 	if not data:
@@ -551,9 +564,10 @@ else: #otherwise create actual values directly from received data
 		T=data["T0"]
 		P=data["P0"]
 		H=data["H0"]
+		L=data["L0"]
 	stamp=start_t.strftime("%d.%m. %Y %H:%M")
 
 	if GENjs:
-		gen_actual_js(T,P,H,stamp,gen_status(data)) # DAY.MONTH. YEAR HOUR:MIN
+		gen_actual_js(T,P,H,L,stamp,gen_status(data)) # DAY.MONTH. YEAR HOUR:MIN
 	if GENtext:
-		gen_actual_raw(T,P,H,stamp,gen_status(data)) # DAY.MONTH. YEAR HOUR:MIN
+		gen_actual_raw(T,P,H,L,stamp,gen_status(data)) # DAY.MONTH. YEAR HOUR:MIN

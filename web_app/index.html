@@ -30,11 +30,12 @@
 					<span id="Atemp" class="bordered">0</span>
 					<span id="Apress" class="bordered">0</span>
 					<span id="Ahumi" class="bordered">0</span>
+					<span id="Alight" class="bordered">0</span>
 					<div id="stamp" class="bordered">-.-</div>
 					<div id="status_container" class="bordered" onclick="toggle_visibility('status_extended')">&#9660 Status: <span id="status">unknown</span> &#9660<div id="status_extended">no messages</div></div>
 				</div>
 				<div id="menu">
-					<a href="/index.html">Aktuální hodnoty</a><a href="/about.html">O projektu</a><a href="/me.html">Kontakt</a><a id="dummy"></a>
+					<a href="/index.html">Aktuální hodnoty</a><!--<a href="/about.html">O projektu</a>--><a href="/me.html">Kontakt</a><a id="dummy"></a>
 				</div>
 			</div>
 
@@ -53,6 +54,10 @@
 					<div id="humidity">
 						<a class="text">vývoj vlhkosti (%)</a>
 						<img id="humi_img" src="charts/humi-lowres.png" alt="relative humidity history">
+					</div>
+					<div id="light">
+						<a class="text">vývoj intenzity osvětlení (lux)</a>
+						<img id="humi_img" src="charts/lght-lowres.png" alt="ambient light history">
 					</div>
 					<hr>
 				</div>

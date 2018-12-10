@@ -7,7 +7,7 @@ CFLAGS			= -std=c99 -c -Wall -g -$(OPTIMIZE) -mmcu=$(MCU) -fdata-sections -ffunc
 OPTIMIZE		= O2
 LDFLAGS			= -Wl,--gc-sections
 TARGET			= main
-UART_DEV		= /dev/ttyUSB1
+UART_DEV		= /dev/ttyUSB0
 
 OBJECTS = $(patsubst %.c, %.o, $(wildcard *.c))
 
