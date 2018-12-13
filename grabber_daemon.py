@@ -382,7 +382,7 @@ def gen_image(data,Xcol,Ycol,ImgName,LineColor, logY = False):
 		printDBG("IMG: plotting smooth curve")
 		pl.plot(x,smooth_y,color=LineColor,zorder=10)
 		if logY:
-			plt.yscale('symlog', linthreshy=1)
+			pl.yscale('symlog', linthreshy=1)
 
 		#adjust subplot
 		pl.subplots_adjust(bottom=0.3,left=0.07,right=1-0.07)
