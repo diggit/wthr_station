@@ -378,15 +378,11 @@ def gen_image(data,Xcol,Ycol,ImgName,LineColor, logY = False):
 
 		#plot lines
 		printDBG("IMG: plotting raw curve")
-		if logY:
-			pl.semilogy(x,y,color=LineColor,alpha=0.3,zorder=10)
-		else:
-			pl.plot(x,y,color=LineColor,alpha=0.3,zorder=10)
+		pl.plot(x,y,color=LineColor,alpha=0.3,zorder=10)
 		printDBG("IMG: plotting smooth curve")
+		pl.plot(x,smooth_y,color=LineColor,zorder=10)
 		if logY:
-			pl.semilogy(x,smooth_y,color=LineColor,zorder=10)
-		else:
-			pl.plot(x,smooth_y,color=LineColor,zorder=10)
+			plt.yscale('symlog', linthreshy=1)
 
 		#adjust subplot
 		pl.subplots_adjust(bottom=0.3,left=0.07,right=1-0.07)
