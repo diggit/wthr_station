@@ -334,7 +334,7 @@ def gen_image(data,Xcol,Ycol,ImgName,LineColor, logY = False):
 			printINS("IMG: no matching timestamp found, missing measurement!")
 
 		if(stamp_t.strftime("%H:%M") in TIME_TICKS):#on specific hours
-			XlistVisible.insert(0,stamp_t.strftime("%d.%m\n%H:%M"))# print date and time info on X axis, crop seconds
+			XlistVisible.insert(0,stamp_t.strftime("%d.%m.\n%h:%M"))# print date and time info on X axis, crop seconds
 			printINS("IMG: visible timestamp recorded")
 		else:
 			XlistVisible.insert(0,"")#otherwise left blank
@@ -412,10 +412,10 @@ def gen_image(data,Xcol,Ycol,ImgName,LineColor, logY = False):
 		if GEN_HIRES:
 			if debug:
 				print("IMG: saving high resolution file")
-			pl.savefig(PATH+"charts/"+ImgName+".png",dpi=300,bottom=20,transparent=True)
+			pl.savefig(PATH+"charts/"+ImgName+".png",dpi=300, transparent=True)
 
 		printDBG("IMG: saving low resolution file")
-		pl.savefig(PATH+"charts/"+ImgName+"-lowres.png",dpi=100,bottom=20,transparent=True)
+		pl.savefig(PATH+"charts/"+ImgName+"-lowres.png",dpi=100, transparent=True)
 		printDBG("IMG: plot file done!")
 	else:
 		printDBG("IMG: leaving, no chart generated")
