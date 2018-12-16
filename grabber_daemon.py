@@ -357,7 +357,7 @@ def gen_image(data,Xcol,Ycol,ImgName,LineColor, logY = False):
 	#plotting follows
 	if GENchart:
 		printDBG("IMG: generating plot")
-		pl.figure(figsize=(9,3), dpi=300)
+		pl.figure(figsize=(9,4), dpi=300)
 		printDBG("IMG: loading data")
 		x = pl.array(range(len(XlistVisible)))
 		y = pl.array(Ylist)
@@ -385,7 +385,7 @@ def gen_image(data,Xcol,Ycol,ImgName,LineColor, logY = False):
 			pl.yscale('symlog', linthreshy=1)
 
 		#adjust subplot
-		pl.subplots_adjust(bottom=0.3,left=0.07,right=1-0.07)
+		pl.subplots_adjust(left=0.07,right=1-0.07)
 
 
 		#print("IMG:Lng:",len(Xlist),len(allXlist))
