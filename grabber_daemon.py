@@ -334,7 +334,7 @@ def gen_image(data,Xcol,Ycol,ImgName,LineColor, logY = False):
 			printINS("IMG: no matching timestamp found, missing measurement!")
 
 		if(stamp_t.strftime("%H:%M") in TIME_TICKS):#on specific hours
-			XlistVisible.insert(0,stamp_t.strftime("%m/%d %H:%M"))# print date and time info on X axis, crop seconds
+			XlistVisible.insert(0,stamp_t.strftime("%d.%m\n%H:%M"))# print date and time info on X axis, crop seconds
 			printINS("IMG: visible timestamp recorded")
 		else:
 			XlistVisible.insert(0,"")#otherwise left blank
@@ -364,7 +364,7 @@ def gen_image(data,Xcol,Ycol,ImgName,LineColor, logY = False):
 		smooth_y = pl.array(smoothYlist)
 
 		printDBG("IMG: loading xticks")
-		pl.xticks(x, XlistVisible,rotation=90)
+		pl.xticks(x, XlistVisible,rotation='horizontal')
 		printDBG("IMG: setting plot properties")
 		ax = pl.subplot(111)
 		ax.tick_params(labelright=True)#Y labels on both sides (we've got wide chart)
