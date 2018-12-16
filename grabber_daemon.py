@@ -385,7 +385,7 @@ def gen_image(data,Xcol,Ycol,ImgName,LineColor, logY = False):
 			pl.yscale('symlog', linthreshy=1)
 
 		#adjust subplot
-		pl.subplots_adjust(left=0.07,right=1-0.07)
+		pl.subplots_adjust(bottom=0.1, left=0.07,right=1-0.07)
 
 
 		#print("IMG:Lng:",len(Xlist),len(allXlist))
