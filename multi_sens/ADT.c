@@ -96,9 +96,14 @@ uint8_t ADT_measure(int16_t *storage, uint8_t samples,uint16_t sample_pause_ms)
 	
 	uint8_t sensor_num,sample_num;
 	
-	int8_t Htemp;
-	int16_t Ltemp;
-
+	union
+	{
+		int16_t value;
+		struct{
+			uint8_t H;
+			uint8_t L;
+		}bytes;
+	}sample;
 	
 	//delay fow proper wakeup
 	
@@ -122,14 +127,14 @@ uint8_t ADT_measure(int16_t *storage, uint8_t samples,uint16_t sample_pause_ms)
 			{
 				if(i2c_start(ADT_addr_base|sensor_num,I2C_READ))//start reading
 					return 1;
-				Htemp=i2c_readAck();//recieve degrees
-				Ltemp=i2c_readNak();//recieve decimals (hexadecimals correctly), align them on lower bits
+				sample.bytes.H=i2c_readAck();//recieve degrees
+				sample.bytes.L=i2c_readNak();//recieve decimals (hexadecimals correctly), align them on lower bits
 				i2c_stop();
 
-				temp+=(Htemp<<8)+Ltemp;
+				temp+=sample.value;
 				
 				#ifdef debug
-				uart_num((Htemp<<8)+Ltemp,4);
+				uart_num(sample.value,4);
 				uart_putc('\n');
 				#endif
 			}
